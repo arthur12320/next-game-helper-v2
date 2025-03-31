@@ -1,7 +1,7 @@
-import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { chapters }  from "./chapters";
-import  users  from "./users";
+import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { chapters } from "./chapters";
+import users from "./users";
 
 export const posts = pgTable("posts", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -24,3 +24,6 @@ export const postRelations = relations(posts, ({ one }) => ({
 
 export type Post = typeof posts.$inferSelect;
 export type NewPost = typeof posts.$inferInsert;
+
+export type PostWithAuthor = Post & { author: typeof users.$inferSelect };
+export type PostWithAuthorName = Post & { author: { name: string, id: string } };

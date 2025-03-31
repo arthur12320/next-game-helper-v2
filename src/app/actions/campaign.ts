@@ -21,6 +21,12 @@ export async function fetchCampaigns() {
     .where(or(eq(campaigns.creatorId, userId), eq(campaigns.dmId, userId)));
 }
 
+export async function fetchCampaign(campaignId: string) {
+  return await db.query.campaigns.findFirst({
+    where: eq(campaigns.id, campaignId),
+  });
+}
+
 // 🚀 Create a new campaign
 export async function createCampaign(name: string, description: string) {
   const session = await auth();
