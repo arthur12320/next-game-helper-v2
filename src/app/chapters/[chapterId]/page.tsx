@@ -9,7 +9,7 @@ import { Suspense } from "react";
 export default async function ChapterPage({
   params,
 }: {
-  params: { chapterId: string };
+  params: Promise<{ chapterId: string }>;
 }) {
   const { chapterId } = await params;
   const chapter = (await fetchChapter(chapterId)) as Chapter;

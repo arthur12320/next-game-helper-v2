@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import type React from "react";
+
 import { addPost } from "@/app/actions/posts";
+import ImageUploader from "@/components/ImageUploader";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useState, useTransition } from "react";
 
-export default function AddPostForm({ chapterId }: { chapterId: string;}) {
+export default function AddPostForm({ chapterId }: { chapterId: string }) {
   const [markdown, setMarkdown] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -17,6 +20,18 @@ export default function AddPostForm({ chapterId }: { chapterId: string;}) {
     });
   }
 
+  function handleImageInsert(imageMarkdown: string) {
+    // Insert markdown image syntax at cursor position or at the end
+    console.log("wrong one");
+    setMarkdown(
+      (prev) =>
+        prev +
+        (prev.endsWith("\n") || prev === "" ? "" : "\n") +
+        imageMarkdown +
+        "\n"
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
       <Textarea
@@ -25,9 +40,14 @@ export default function AddPostForm({ chapterId }: { chapterId: string;}) {
         placeholder="Write your post..."
         rows={4}
       />
-      <Button type="submit" disabled={isPending}>
-        {isPending ? "Posting..." : "Add Post"}
-      </Button>
+      <div className="flex justify-between">
+        <div className="flex gap-2">
+          <ImageUploader onImageInsert={handleImageInsert} />
+        </div>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "Posting..." : "Add Post"}
+        </Button>
+      </div>
     </form>
   );
 }

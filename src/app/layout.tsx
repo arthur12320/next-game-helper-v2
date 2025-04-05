@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/sonner";
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { SessionProvider } from "next-auth/react";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -31,12 +32,14 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased w-screen h-screen flex flex-col`}
       >
-        <ThemeProvider attribute="class" defaultTheme="system">
-          <Navbar />
+        <SessionProvider>
+          <ThemeProvider attribute="class" defaultTheme="system">
+            <Navbar />
 
-          <main className="flex-grow overflow-x-hidden">{children}</main>
-          <Toaster />
-        </ThemeProvider>
+            <main className="flex-grow overflow-x-hidden">{children}</main>
+            <Toaster richColors />
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );

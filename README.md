@@ -5,4 +5,4 @@ This is a [Next.js](https://nextjs.org) project to play RPG games
 - [ ] Add the new user screen
 - [ ] Add Admin panel
 - [ ] Add notifications
-- [ ] Add image upload
+- [x] Add image upload

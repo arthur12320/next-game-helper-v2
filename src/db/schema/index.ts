@@ -1,6 +1,7 @@
 // Import the base schemas first
 export { default as accounts } from "./accounts";
 export { allowedUsers } from "./allowedUsers";
+export { assets } from "./assets";
 export { campaignInvites } from "./campaignInvites";
 export { campaignPlayers } from "./campaignPlayers";
 export { campaigns } from "./campaigns";

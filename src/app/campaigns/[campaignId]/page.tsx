@@ -9,7 +9,7 @@ import ChapterList from "./ChapterList";
 export default async function CampaignChapters({
   params,
 }: {
-  params: { campaignId: string };
+  params: Promise<{ campaignId: string }>;
 }) {
   const { campaignId } = await params;
   const campaign = (await fetchCampaign(campaignId)) as Campaign;

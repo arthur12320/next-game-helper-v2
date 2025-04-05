@@ -27,6 +27,7 @@ export default async function Navbar() {
     { name: "Home", href: "/" },
     { name: "Campaigns", href: "/campaigns" },
     { name: "Invites", href: "/campaigns/invites" },
+    { name: "Assets", href: "/assets" },
   ];
 
   return (

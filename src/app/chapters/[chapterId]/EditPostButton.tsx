@@ -1,6 +1,7 @@
 "use client";
 
 import { editPost } from "@/app/actions/posts";
+import ImageUploader from "@/components/ImageUploader";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,7 +20,7 @@ import { useState, useTransition } from "react";
 
 export default function EditPostButton({ post }: { post: PostWithAuthorName }) {
   const [open, setOpen] = useState(false);
-  const [content, setContent] = useState(() => {
+  const [content, setContent] = useState<string>(() => {
     const parsedContent =
       typeof post.content === "string"
         ? JSON.parse(post.content)
@@ -28,6 +29,18 @@ export default function EditPostButton({ post }: { post: PostWithAuthorName }) {
   });
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
+  function handleImageInsert2(imageMarkdown: string) {
+    // Insert markdown image syntax at cursor position or at the end
+    console.log("herereeee");
+    setContent(
+      (prev) =>
+        prev +
+        (prev.endsWith("\n") || prev === "" ? "" : "\n") +
+        imageMarkdown +
+        "\n"
+    );
+  }
 
   const handleSave = () => {
     startTransition(async () => {
@@ -73,6 +86,8 @@ export default function EditPostButton({ post }: { post: PostWithAuthorName }) {
           />
         </div>
         <DialogFooter>
+          <ImageUploader onImageInsert={handleImageInsert2} />
+
           <Button
             variant="outline"
             onClick={() => setOpen(false)}
