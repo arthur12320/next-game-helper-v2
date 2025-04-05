@@ -2,10 +2,11 @@ import { auth } from "../auth";
 
 const publicRoutes = ["/"];
 
-// const authRoutes = [
-//     "/auth/login",
-//     "/auth/register"
-// ];
+const authRoutes = [
+  "/auth/login",
+  "/auth/register",
+  "/auth/error"
+];
 
 const apiAuthPrefix = "api/auth";
 
@@ -16,8 +17,9 @@ export default auth((req) => {
 
   const isPublicRoute = publicRoutes.includes(nextUrl.pathname);
   const isApiAuthRoute = nextUrl.pathname.includes(apiAuthPrefix);
+  const isAuthRoute = authRoutes.includes(nextUrl.pathname);
 
-  if (isApiAuthRoute) {
+  if (isApiAuthRoute || isAuthRoute) {
     return;
   }
 

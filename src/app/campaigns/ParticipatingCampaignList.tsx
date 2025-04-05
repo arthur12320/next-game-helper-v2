@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { fetchParticipatingCampaigns } from "../actions/campaignPlayers";
 import LeaveCampaignButton from "./LeaveCampaignButton";
 
@@ -9,12 +10,12 @@ export default async function ParticipatingCampaignList() {
       {campaigns.map((campaign) => (
         <li
           key={campaign.id}
-          className="border p-4 rounded-lg shadow flex justify-between"
+          className="border p-4 rounded-lg shadow flex justify-between items-center"
         >
-          <div>
+          <Link href={`/campaigns/${campaign.id}`} className="flex-grow">
             <h3 className="text-lg font-semibold">{campaign.name}</h3>
             <p className="text-gray-600">{campaign.description}</p>
-          </div>
+          </Link>
           <LeaveCampaignButton id={campaign.id} />
         </li>
       ))}

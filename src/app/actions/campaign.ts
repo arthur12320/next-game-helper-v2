@@ -2,15 +2,17 @@
 
 import db from "@/db"; // Import your Drizzle database instance
 import { campaigns } from "@/db/schema";
-import { eq, or, and } from "drizzle-orm";
-import { auth } from "../../../auth"; // Ensure this fetches the current session
 import { NewCampaign } from "@/db/schema/campaigns";
+import { and, eq, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { auth } from "../../../auth"; // Ensure this fetches the current session
+import { userHasAccessToCampaign } from "./campaignPermissions";
 
 // 🚀 Fetch campaigns for the logged-in user
 export async function fetchCampaigns() {
   const session = await auth();
   if (!session?.user) return [];
+  console.log("session", session);
 
   const userId = session.user.id as string;
 
@@ -22,9 +24,14 @@ export async function fetchCampaigns() {
 }
 
 export async function fetchCampaign(campaignId: string) {
-  return await db.query.campaigns.findFirst({
-    where: eq(campaigns.id, campaignId),
-  });
+  if (!(await userHasAccessToCampaign(campaignId))) return null;
+
+  return await db
+    .select()
+    .from(campaigns)
+    .where(eq(campaigns.id, campaignId))
+    .limit(1)
+    .then((res) => res[0] || null);
 }
 
 // 🚀 Create a new campaign
