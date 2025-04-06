@@ -20,6 +20,7 @@ import { Suspense } from "react";
 import { auth } from "../../auth";
 import { ThemeToggle } from "./ThemeToggle";
 import AuthButton from "./authButton";
+import { NotificationBellWrapper } from "./notifications/NotificationBellWrapper";
 
 export default async function Navbar() {
   const session = await auth();
@@ -88,6 +89,11 @@ export default async function Navbar() {
           </NavigationMenuList>
         </NavigationMenu>
         <div className="flex flex-1 items-center justify-end space-x-4 w-full">
+          {session?.user && (
+            <Suspense fallback={<div className="w-9 h-9" />}>
+              <NotificationBellWrapper />
+            </Suspense>
+          )}
           <ThemeToggle />
           <nav className="flex items-center space-x-2">
             <Suspense>

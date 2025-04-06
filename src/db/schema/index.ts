@@ -6,6 +6,7 @@ export { campaignInvites } from "./campaignInvites";
 export { campaignPlayers } from "./campaignPlayers";
 export { campaigns } from "./campaigns";
 export { chapters } from "./chapters";
+export { notifications } from "./notifications";
 export { posts } from "./posts";
 export { default as sessions } from "./sessions";
 export { default as users } from "./users";

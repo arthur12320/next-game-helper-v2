@@ -4,8 +4,9 @@ import db from "@/db";
 import { campaignInvites } from "@/db/schema/campaignInvites";
 import { campaignPlayers } from "@/db/schema/campaignPlayers";
 import { default as users } from "@/db/schema/users";
-import { eq, and } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { auth } from "../../../auth"; // Assuming you have auth setup
+import { addNotification } from "./notifications";
 
 // 📨 **Send Invite**
 export async function sendInvite({
@@ -32,6 +33,9 @@ export async function sendInvite({
     invitedUserId: user.id,
     status: "pending",
   });
+
+  // Send notification to invited user
+  await addNotification("You have been invited to join a campaign. by " + user.name, "invite", userEmail);
 }
 
 // ✅ **Accept Invite**
@@ -58,6 +62,23 @@ export async function acceptInvite(inviteId: string) {
     .update(campaignInvites)
     .set({ status: "accepted" })
     .where(eq(campaignInvites.id, inviteId));
+
+  //find campaign
+  const campaign = await db.query.campaigns.findFirst({
+    where: (c, { eq }) => eq(c.id, invite[0].campaignId as string),
+    with: {
+      creator: { columns: { email: true } },
+      dm: { columns: { email: true } },
+    },
+  });
+
+  // Send notification to campaign creator and DM
+  if (campaign && campaign.creator.email) {
+    await addNotification("User " + session.user.name + " has accepted your invitation to join your campaign " + campaign?.name, "invite", campaign?.creator?.email);
+  }
+  if (campaign && campaign.dm.email) {
+    await addNotification("User " + session.user.name + " has accepted your invitation to join your campaign " + campaign?.name, "invite", campaign?.dm?.email);
+  }
 }
 
 // ❌ **Reject Invite**
