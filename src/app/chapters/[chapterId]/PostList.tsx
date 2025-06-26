@@ -43,6 +43,7 @@ export default async function PostList({ chapterId }: { chapterId: string }) {
     </div>
   );
 }
+//skeleton
 
 PostList.skeleton = function skeleton() {
   return (
