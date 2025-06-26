@@ -66,7 +66,7 @@ export default function EditPostButton({ post }: { post: PostWithAuthorName }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
-          <Edit2 className="mr-2 h-4 w-4" />
+          <Edit2 className="mr-2 h-4 w-8" />
           Edit
         </Button>
       </DialogTrigger>
@@ -81,7 +81,7 @@ export default function EditPostButton({ post }: { post: PostWithAuthorName }) {
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="min-h-[200px]"
+            className="min-h-[200px] overflow-auto max-h-8"
             placeholder="Edit your post content..."
           />
         </div>

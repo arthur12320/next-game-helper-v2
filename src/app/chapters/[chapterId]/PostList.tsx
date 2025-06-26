@@ -23,7 +23,7 @@ export default async function PostList({ chapterId }: { chapterId: string }) {
             ? JSON.parse(post.content)
             : post.content;
         return (
-          <Card key={post.id}>
+          <Card className="overflow-auto" key={post.id}>
             <CardHeader>
               <CardTitle>Posted by: {post.author.name || "Unknown"}</CardTitle>
               <p className="text-sm text-gray-500">

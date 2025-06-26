@@ -16,7 +16,7 @@ export default async function CampaignChapters({
   if (!campaign) return redirect("/");
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl py-6 space-y-8">
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-8xl py-6 space-y-8">
       {/* Back button */}
       <Link href="/campaigns" className="inline-block  text-blue-500">
         ← Back to Campaigns
