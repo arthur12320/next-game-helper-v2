@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         uploadedAssets.push({
           id: insertedAsset.id,
           name: insertedAsset.name,
-          url: `/api/files/${insertedAsset.id}`,
+          url: `${insertedAsset.url}`,
         })
       } catch (fileError) {
         console.error(`Error uploading file ${file.name}:`, fileError)
