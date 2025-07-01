@@ -6,7 +6,6 @@ import { assets } from "@/db/schema/assets"
 
 // Configure for large files
 export const runtime = "nodejs"
-export const maxDuration = 300 // 5 minutes timeout for large uploads
 
 export async function POST(request: NextRequest) {
   try {
