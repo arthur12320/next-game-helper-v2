@@ -27,7 +27,6 @@ export async function POST(request: NextRequest) {
     // Parse form data with size limit
     const formData = await request.formData()
     const files = formData.getAll("files") as File[]
-    const campaignId = formData.get("campaignId") as string | null
 
     console.log("Received files:", files.map(file => file.name))
 

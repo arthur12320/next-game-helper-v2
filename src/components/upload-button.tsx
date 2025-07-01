@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,20 +11,13 @@ import { Upload, X, Copy, Check } from "lucide-react"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Card, CardContent } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 
-interface Campaign {
-  id: string
-  name: string
-  role: "owner" | "player"
-}
 
 interface UploadButtonProps {
   onUploadComplete?: () => void
@@ -102,7 +95,7 @@ export function UploadButton({ onUploadComplete }: UploadButtonProps) {
 
       const result = await response.json()
 
-      setUploadedUrls(result.assets.map((asset: any) => asset.url))
+      setUploadedUrls(result.assets.map((asset: { url: string }) => asset.url))
       setSelectedFiles([])
 
       toast( "Upload successful",{
@@ -130,6 +123,7 @@ export function UploadButton({ onUploadComplete }: UploadButtonProps) {
       })
       setTimeout(() => setCopiedUrl(null), 2000)
     } catch (error) {
+      console.error("Copy to clipboard failed:", error)
       toast.error("Copy failed",{
         description: "Failed to copy link to clipboard",
       })
