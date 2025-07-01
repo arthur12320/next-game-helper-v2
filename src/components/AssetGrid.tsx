@@ -19,7 +19,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { toast } from "sonner";
 
-interface Asset {
+export interface Asset {
   id: string;
   url: string;
   name: string;
