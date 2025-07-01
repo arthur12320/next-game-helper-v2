@@ -7,9 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-
 import { Upload, X, Copy, Check } from "lucide-react";
-import { uploadAsset } from "@/app/actions/assets";
 import {
   Dialog,
   DialogContent,
@@ -60,28 +58,55 @@ export function UploadButton({ onUploadComplete }: UploadButtonProps) {
 
     setIsUploading(true);
     setUploadProgress(0);
-    const urls: string[] = [];
 
     try {
-      for (let i = 0; i < selectedFiles.length; i++) {
-        const file = selectedFiles[i];
-        const url = await uploadAsset(file);
-        urls.push(url);
-        setUploadProgress(((i + 1) / selectedFiles.length) * 100);
+      const formData = new FormData();
+
+      // Add all files to FormData
+      selectedFiles.forEach((file) => {
+        formData.append("files", file);
+      });
+
+      // Upload files with progress simulation
+      const uploadPromise = fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      // Simulate progress for better UX
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 90) return prev;
+          return prev + Math.random() * 10;
+        });
+      }, 200);
+
+      const response = await uploadPromise;
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Upload failed");
       }
 
-      setUploadedUrls(urls);
+      const result = await response.json();
+
+      setUploadedUrls(result.urls);
       setSelectedFiles([]);
 
       toast("Upload successful", {
-        description: `${urls.length} file(s) uploaded successfully`,
+        description: result.message,
       });
 
       onUploadComplete?.();
     } catch (error) {
-      console.log(error);
-      toast.error("Upload failed", {
-        description: "There was an error uploading your files",
+      console.error("Upload error:", error);
+      toast("Upload failed", {
+        description:
+          error instanceof Error
+            ? error.message
+            : "There was an error uploading your files",
       });
     } finally {
       setIsUploading(false);
@@ -221,7 +246,7 @@ export function UploadButton({ onUploadComplete }: UploadButtonProps) {
           {uploadedUrls.length > 0 && (
             <div className="space-y-2">
               <Label className="text-sm font-medium">Uploaded Files:</Label>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
+              <div className="space-y-2 max-h-32 max-w-100 overflow-y-auto">
                 {uploadedUrls.map((url, index) => (
                   <Card key={index}>
                     <CardContent className="p-3">
