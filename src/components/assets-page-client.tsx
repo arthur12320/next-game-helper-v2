@@ -18,6 +18,7 @@ export function AssetsPageClient({
   const handleUploadComplete = () => {
     // Refresh the page to get updated assets from server
     router.refresh();
+    console.log("Assets reloaded after upload");
   };
 
   return (
