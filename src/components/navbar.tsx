@@ -25,10 +25,10 @@ import { NotificationBellWrapper } from "./notifications/NotificationBellWrapper
 export default async function Navbar() {
   const session = await auth();
   const navItems = [
-    { name: "Home", href: "/" },
     { name: "Campaigns", href: "/campaigns" },
     { name: "Invites", href: "/campaigns/invites" },
     { name: "Assets", href: "/assets" },
+    { name: "Mouse Creation", href: "/mouse-character-creation" },
   ];
 
   return (
