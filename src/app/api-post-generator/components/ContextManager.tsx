@@ -52,10 +52,7 @@ export default function ContextManager({
 
   const getContextPreview = () => {
     const contextEntries = adventureJournal
-      .filter(
-        (entry) =>
-          selectedEntries.length === 0 || selectedEntries.includes(entry.id)
-      )
+      .filter((entry) => selectedEntries.includes(entry.id))
       .slice(0, 5)
       .map((entry) => `${entry.title}: ${entry.content}`)
       .join("\n\n");

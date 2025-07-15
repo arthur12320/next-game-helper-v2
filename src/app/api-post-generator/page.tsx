@@ -22,20 +22,29 @@ import {
   Save,
   Copy,
   RefreshCw,
-  MessageSquare,
   Scroll,
   Wand2,
   Eye,
   Edit,
   AlertTriangle,
+  Brain,
+  EyeOff,
+  Plus,
+  Minus,
+  Trash2,
 } from "lucide-react";
 import {
   generateMouseGuardContent,
   checkContextLimits,
 } from "./components/AIIntegration";
 import APIKeyManager from "./components/APIKeyManager";
-import ContextManager from "./components/ContextManager";
 import BlogIntegration from "./components/BlogIntegration";
+import {
+  createJournalEntry,
+  fetchJournalEntries,
+  deleteJournalEntry,
+} from "@/app/actions/adventure-journal";
+import { SelectAdventureJournal } from "@/db/schema/adventure-journal";
 
 interface GeneratedPost {
   id: string;
@@ -48,14 +57,6 @@ interface GeneratedPost {
   saved: boolean;
   usedContext?: boolean;
   contextEntries?: number;
-}
-
-interface AdventureJournalEntry {
-  id: string;
-  title: string;
-  content: string;
-  timestamp: Date;
-  tags: string[];
 }
 
 const POST_TYPES = [
@@ -127,26 +128,14 @@ export default function AIPostGenerator() {
   const [generatedPosts, setGeneratedPosts] = useState<GeneratedPost[]>([]);
   const [currentResponse, setCurrentResponse] = useState("");
   const [apiKey, setApiKey] = useState("");
+
+  // Database state
   const [adventureJournal, setAdventureJournal] = useState<
-    AdventureJournalEntry[]
-  >([
-    {
-      id: "1",
-      title: "The Grain Delivery Mission",
-      content:
-        "Our patrol was tasked with escorting a grain shipment from Rootwallow to Lockhaven. The autumn winds were picking up, and Saxon warned us about potential weasel activity in the area. As we loaded the cart, I noticed Kenzie checking her sword more than usual - a sure sign she sensed trouble ahead.",
-      timestamp: new Date(Date.now() - 86400000),
-      tags: ["mission", "escort", "grain", "autumn"],
-    },
-    {
-      id: "2",
-      title: "Encounter with the Weasel",
-      content:
-        "As we approached the old bridge, Kenzie spotted movement in the underbrush. A massive weasel emerged, its yellow eyes fixed on our grain cart. The battle was fierce - Saxon's shield work saved us all when the beast lunged. We managed to drive it off, but not before it scattered half our cargo into the stream below.",
-      timestamp: new Date(Date.now() - 172800000),
-      tags: ["combat", "weasel", "bridge", "battle"],
-    },
-  ]);
+    SelectAdventureJournal[]
+  >([]);
+  const [isLoadingJournal, setIsLoadingJournal] = useState(true);
+  const [isSavingEntry, setIsSavingEntry] = useState(false);
+
   const [journalTitle, setJournalTitle] = useState("");
   const [journalTags, setJournalTags] = useState("");
   const [useJournalContext, setUseJournalContext] = useState(true);
@@ -154,6 +143,8 @@ export default function AIPostGenerator() {
     string[]
   >([]);
   const [addToContext, setAddToContext] = useState(true);
+  const [showContextPreview, setShowContextPreview] = useState(false);
+  const [customContext, setCustomContext] = useState("");
 
   useEffect(() => {
     // Initialize API key from localStorage on component mount
@@ -161,7 +152,23 @@ export default function AIPostGenerator() {
     if (savedApiKey) {
       setApiKey(savedApiKey);
     }
+
+    // Load journal entries
+    loadJournalEntries();
   }, []);
+
+  const loadJournalEntries = async () => {
+    try {
+      setIsLoadingJournal(true);
+      const entries = await fetchJournalEntries();
+      setAdventureJournal(entries);
+    } catch (error) {
+      console.error("Error loading journal entries:", error);
+      // Handle error - could show toast notification
+    } finally {
+      setIsLoadingJournal(false);
+    }
+  };
 
   const generateAIResponse = async () => {
     if (!prompt.trim()) return;
@@ -176,18 +183,18 @@ export default function AIPostGenerator() {
       // Prepare context from selected journal entries
       const contextEntries = useJournalContext
         ? adventureJournal
-            .filter(
-              (entry) =>
-                selectedJournalEntries.length === 0 ||
-                selectedJournalEntries.includes(entry.id)
-            )
+            .filter((entry) => selectedJournalEntries.includes(entry.id))
             .slice(0, 5) // Limit to last 5 entries to avoid token limits
             .map((entry) => `${entry.title}: ${entry.content}`)
             .join("\n\n")
         : "";
 
+      const fullContext = customContext
+        ? `${contextEntries}\n\n${customContext}`
+        : contextEntries;
+
       // Check context limits
-      const contextCheck = checkContextLimits(contextEntries, prompt);
+      const contextCheck = checkContextLimits(fullContext, prompt);
       if (!contextCheck.withinLimits) {
         alert(
           `Context is too large (${contextCheck.estimatedTokens} tokens). Please reduce selected journal entries.`
@@ -204,7 +211,7 @@ export default function AIPostGenerator() {
         postType,
         tone,
         length,
-        context: contextEntries,
+        context: fullContext,
       });
 
       const newPost: GeneratedPost = {
@@ -236,36 +243,102 @@ export default function AIPostGenerator() {
     }
   };
 
-  const saveToJournal = (post: GeneratedPost) => {
-    const newEntry: AdventureJournalEntry = {
-      id: Date.now().toString(),
-      title: journalTitle || `AI Generated: ${post.postType}`,
-      content: post.response,
-      timestamp: new Date(),
-      tags: journalTags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
-    };
-
-    if (addToContext) {
-      setAdventureJournal((prev) => [newEntry, ...prev]);
+  const saveToJournal = async (post: GeneratedPost) => {
+    if (!journalTitle.trim()) {
+      alert("Please enter a title for the journal entry");
+      return;
     }
 
-    // Mark post as saved
-    setGeneratedPosts((prev) =>
-      prev.map((p) => (p.id === post.id ? { ...p, saved: true } : p))
-    );
+    try {
+      setIsSavingEntry(true);
 
-    // Reset form
-    setJournalTitle("");
-    setJournalTags("");
+      const tags = journalTags
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+
+      await createJournalEntry({
+        title: journalTitle,
+        content: post.response,
+        tags,
+      });
+
+      // Reload journal entries to get the updated list
+      await loadJournalEntries();
+
+      // Mark post as saved
+      setGeneratedPosts((prev) =>
+        prev.map((p) => (p.id === post.id ? { ...p, saved: true } : p))
+      );
+
+      // Reset form
+      setJournalTitle("");
+      setJournalTags("");
+
+      // Show success message (you could use a toast here)
+      alert("Journal entry saved successfully!");
+    } catch (error) {
+      console.error("Error saving journal entry:", error);
+      alert("Failed to save journal entry. Please try again.");
+    } finally {
+      setIsSavingEntry(false);
+    }
+  };
+
+  const handleDeleteEntry = async (entryId: string) => {
+    if (!confirm("Are you sure you want to delete this journal entry?")) {
+      return;
+    }
+
+    try {
+      await deleteJournalEntry(entryId);
+      await loadJournalEntries();
+
+      // Remove from selected entries if it was selected
+      setSelectedJournalEntries((prev) => prev.filter((id) => id !== entryId));
+    } catch (error) {
+      console.error("Error deleting journal entry:", error);
+      alert("Failed to delete journal entry. Please try again.");
+    }
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     // Could add toast notification here
   };
+
+  const toggleJournalEntry = (entryId: string) => {
+    if (selectedJournalEntries.includes(entryId)) {
+      setSelectedJournalEntries(
+        selectedJournalEntries.filter((id) => id !== entryId)
+      );
+    } else {
+      setSelectedJournalEntries([...selectedJournalEntries, entryId]);
+    }
+  };
+
+  const selectAllEntries = () => {
+    setSelectedJournalEntries(adventureJournal.map((entry) => entry.id));
+  };
+
+  const clearAllEntries = () => {
+    setSelectedJournalEntries([]);
+  };
+
+  const getContextPreview = () => {
+    const contextEntries = adventureJournal
+      .filter((entry) => selectedJournalEntries.includes(entry.id))
+      .slice(0, 5)
+      .map((entry) => `${entry.title}: ${entry.content}`)
+      .join("\n\n");
+
+    return customContext
+      ? `${contextEntries}\n\n${customContext}`
+      : contextEntries;
+  };
+
+  const contextLength = getContextPreview().length;
+  const estimatedTokens = Math.ceil(contextLength / 4); // Rough token estimation
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
@@ -281,14 +354,10 @@ export default function AIPostGenerator() {
       </div>
 
       <Tabs defaultValue="generator" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="generator" className="flex items-center gap-2">
             <Sparkles className="w-4 h-4" />
             Generator
-          </TabsTrigger>
-          <TabsTrigger value="history" className="flex items-center gap-2">
-            <MessageSquare className="w-4 h-4" />
-            Generated Posts
           </TabsTrigger>
           <TabsTrigger value="journal" className="flex items-center gap-2">
             <BookOpen className="w-4 h-4" />
@@ -303,13 +372,6 @@ export default function AIPostGenerator() {
         {/* Settings Tab */}
         <TabsContent value="settings" className="space-y-6">
           <APIKeyManager onApiKeyChange={setApiKey} />
-          <ContextManager
-            adventureJournal={adventureJournal}
-            selectedEntries={selectedJournalEntries}
-            onSelectionChange={setSelectedJournalEntries}
-            useContext={useJournalContext}
-            onContextToggle={setUseJournalContext}
-          />
         </TabsContent>
 
         {/* AI Generator Tab */}
@@ -414,7 +476,11 @@ export default function AIPostGenerator() {
                       </Badge>
                     </div>
                     <p className="text-xs text-blue-700">
-                      AI will use adventure journal context for story continuity
+                      AI will use selected adventure journal entries for story
+                      continuity
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Configure context in the Adventure Journal tab
                     </p>
                   </div>
                 )}
@@ -493,7 +559,6 @@ export default function AIPostGenerator() {
                       <BlogIntegration
                         generatedContent={currentResponse}
                         onPostCreated={() => {
-                          // Optional: Add success feedback or refresh logic
                           console.log("Post created successfully!");
                         }}
                       />
@@ -532,10 +597,25 @@ export default function AIPostGenerator() {
                         <Button
                           size="sm"
                           onClick={() => saveToJournal(generatedPosts[0])}
-                          disabled={!generatedPosts.length}
+                          disabled={
+                            !generatedPosts.length ||
+                            isSavingEntry ||
+                            !journalTitle.trim()
+                          }
                         >
-                          <Save className="w-4 h-4 mr-1" />
-                          {addToContext ? "Save & Add to Context" : "Save Only"}
+                          {isSavingEntry ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="w-4 h-4 mr-1" />
+                              {addToContext
+                                ? "Save & Add to Context"
+                                : "Save Only"}
+                            </>
+                          )}
                         </Button>
                       </div>
 
@@ -558,151 +638,230 @@ export default function AIPostGenerator() {
           </div>
         </TabsContent>
 
-        {/* Generated Posts History Tab */}
-        <TabsContent value="history" className="space-y-4">
+        {/* Adventure Journal Tab with Context Manager */}
+        <TabsContent value="journal" className="space-y-6">
+          {/* Context Manager Section */}
+          <Card className="border-blue-200">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Brain className="w-5 h-5 text-blue-600" />
+                  AI Context Manager
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={useJournalContext ? "default" : "secondary"}>
+                    {useJournalContext ? "Active" : "Disabled"}
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setUseJournalContext(!useJournalContext)}
+                  >
+                    {useJournalContext ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </CardTitle>
+            </CardHeader>
+
+            {useJournalContext && (
+              <CardContent className="space-y-4">
+                {/* Context Stats */}
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">
+                    {selectedJournalEntries.length ||
+                      adventureJournal.slice(0, 5).length}{" "}
+                    entries selected
+                  </span>
+                  <span className="text-gray-600">
+                    ~{estimatedTokens} tokens
+                  </span>
+                </div>
+
+                {/* Selection Controls */}
+                <div className="flex justify-between items-center">
+                  <h4 className="font-medium text-sm">
+                    Select entries for AI context
+                  </h4>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={selectAllEntries}
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearAllEntries}
+                    >
+                      <Minus className="w-3 h-3 mr-1" />
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Custom Context */}
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Additional Context</h4>
+                  <Textarea
+                    placeholder="Add custom context, character details, or specific instructions..."
+                    value={customContext}
+                    onChange={(e) => setCustomContext(e.target.value)}
+                    rows={3}
+                    className="text-sm"
+                  />
+                </div>
+
+                {/* Context Preview */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-medium text-sm">Context Preview</h4>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowContextPreview(!showContextPreview)}
+                    >
+                      {showContextPreview ? (
+                        <EyeOff className="w-3 h-3" />
+                      ) : (
+                        <Eye className="w-3 h-3" />
+                      )}
+                    </Button>
+                  </div>
+
+                  {showContextPreview && (
+                    <div className="bg-gray-50 p-3 rounded border max-h-40 overflow-y-auto">
+                      <pre className="text-xs whitespace-pre-wrap text-gray-700">
+                        {getContextPreview() || "No context selected"}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+
+                {/* Context Warning */}
+                {estimatedTokens > 1000 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded p-2">
+                    <p className="text-xs text-amber-700">
+                      ⚠️ Large context may affect response quality and increase
+                      costs. Consider reducing selected entries.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            )}
+          </Card>
+
+          {/* Journal Entries */}
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Generated Posts History</h2>
-            <Badge variant="secondary">{generatedPosts.length} posts</Badge>
+            <h2 className="text-xl font-semibold">Adventure Journal Entries</h2>
+            <div className="flex items-center gap-2">
+              {isLoadingJournal && (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              )}
+              <Badge variant="secondary">
+                {adventureJournal.length} entries
+              </Badge>
+              <Button variant="outline" size="sm" onClick={loadJournalEntries}>
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
 
-          {generatedPosts.length > 0 ? (
+          {isLoadingJournal ? (
+            <div className="text-center py-12 text-gray-500">
+              <RefreshCw className="w-8 h-8 mx-auto mb-4 animate-spin" />
+              <p>Loading journal entries...</p>
+            </div>
+          ) : (
             <div className="space-y-4">
-              {generatedPosts.map((post) => (
-                <Card key={post.id}>
+              {adventureJournal.map((entry) => (
+                <Card
+                  key={entry.id}
+                  className={
+                    selectedJournalEntries.includes(entry.id)
+                      ? "ring-2 ring-blue-200"
+                      : ""
+                  }
+                >
                   <CardHeader>
                     <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">{post.postType}</Badge>
-                          <Badge variant="outline">{post.tone}</Badge>
-                          <Badge variant="outline">{post.length}</Badge>
-                          {post.usedContext && (
+                      <div className="flex items-start gap-3">
+                        {useJournalContext && (
+                          <label className="flex items-center mt-1">
+                            <input
+                              type="checkbox"
+                              checked={selectedJournalEntries.includes(
+                                entry.id
+                              )}
+                              onChange={() => toggleJournalEntry(entry.id)}
+                              className="rounded text-blue-600 focus:ring-blue-500"
+                            />
+                          </label>
+                        )}
+                        <div className="flex-1">
+                          <CardTitle className="text-lg">
+                            {entry.title}
+                          </CardTitle>
+                          <p className="text-sm text-gray-500">
+                            {new Date(entry.createdAt).toLocaleString()}
+                            {entry.updatedAt !== entry.createdAt && " (edited)"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap gap-1">
+                          {entry?.tags?.map((tag) => (
                             <Badge
-                              variant="outline"
-                              className="bg-blue-50 text-blue-700"
+                              key={tag}
+                              variant="secondary"
+                              className="text-xs"
                             >
-                              Context: {post.contextEntries} entries
+                              {tag}
                             </Badge>
-                          )}
-                          {post.saved && (
-                            <Badge className="bg-green-100 text-green-800">
-                              Saved
+                          ))}
+                          {selectedJournalEntries.includes(entry.id) && (
+                            <Badge className="bg-blue-100 text-blue-800 text-xs">
+                              In Context
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-gray-500">
-                          {post.timestamp.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <h4 className="font-medium text-gray-800 mb-2">
-                        Prompt:
-                      </h4>
-                      <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                        {post.prompt}
-                      </p>
-                    </div>
-
-                    <div>
-                      <h4 className="font-medium text-gray-800 mb-2">
-                        Generated Content:
-                      </h4>
-                      <div className="bg-blue-50 p-3 rounded border-l-4 border-blue-400">
-                        <p className="whitespace-pre-wrap text-gray-800">
-                          {post.response}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => copyToClipboard(post.response)}
-                      >
-                        <Copy className="w-4 h-4 mr-1" />
-                        Copy
-                      </Button>
-
-                      <BlogIntegration
-                        generatedContent={post.response}
-                        onPostCreated={() => {
-                          // Optional: Add success feedback or refresh logic
-                          console.log("Post created successfully!");
-                        }}
-                      />
-
-                      {!post.saved && (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            setCurrentResponse(post.response);
-                            // Switch to generator tab for saving
-                          }}
+                          onClick={() => handleDeleteEntry(entry.id)}
+                          className="text-red-600 hover:text-red-800"
                         >
-                          <Save className="w-4 h-4 mr-1" />
-                          Save to Journal
+                          <Trash2 className="w-4 h-4" />
                         </Button>
-                      )}
+                      </div>
                     </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="whitespace-pre-wrap text-gray-700">
+                      {entry.content}
+                    </p>
                   </CardContent>
                 </Card>
               ))}
-            </div>
-          ) : (
-            <div className="text-center py-12 text-gray-500">
-              <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No generated posts yet</p>
-              <p className="text-sm">
-                Create your first AI-generated post in the Generator tab
-              </p>
+
+              {adventureJournal.length === 0 && (
+                <div className="text-center py-12 text-gray-500">
+                  <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No journal entries yet</p>
+                  <p className="text-sm">
+                    Generate AI content and save it to start building your
+                    adventure journal
+                  </p>
+                </div>
+              )}
             </div>
           )}
-        </TabsContent>
-
-        {/* Adventure Journal Tab */}
-        <TabsContent value="journal" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Adventure Journal</h2>
-            <Badge variant="secondary">{adventureJournal.length} entries</Badge>
-          </div>
-
-          <div className="space-y-4">
-            {adventureJournal.map((entry) => (
-              <Card key={entry.id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-lg">{entry.title}</CardTitle>
-                      <p className="text-sm text-gray-500">
-                        {entry.timestamp.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {entry.tags.map((tag) => (
-                        <Badge
-                          key={tag}
-                          variant="secondary"
-                          className="text-xs"
-                        >
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="whitespace-pre-wrap text-gray-700">
-                    {entry.content}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
         </TabsContent>
       </Tabs>
     </div>

@@ -50,6 +50,13 @@
       "when": 1743893753841,
       "tag": "0006_stiff_cassandra_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1752605127006,
+      "tag": "0007_powerful_marten_broadcloak",
+      "breakpoints": true
     }
   ]
 }

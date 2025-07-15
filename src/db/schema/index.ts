@@ -10,6 +10,7 @@ export { notifications } from "./notifications";
 export { posts } from "./posts";
 export { default as sessions } from "./sessions";
 export { default as users } from "./users";
+export { adventureJournal } from "./adventure-journal";
 
 // Then export the relations (if needed)
 export { campaignInviteRelations } from "./campaignInvites";
@@ -17,4 +18,3 @@ export { campaignPlayersRelations } from "./campaignPlayers";
 export { campaignRelations } from "./campaigns";
 export { chapterRelations } from "./chapters";
 export { postRelations } from "./posts";
-
