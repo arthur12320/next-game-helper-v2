@@ -157,6 +157,7 @@ export default function AIPostGenerator() {
     loadJournalEntries();
   }, []);
 
+
   const loadJournalEntries = async () => {
     try {
       setIsLoadingJournal(true);
@@ -169,6 +170,7 @@ export default function AIPostGenerator() {
       setIsLoadingJournal(false);
     }
   };
+
 
   const generateAIResponse = async () => {
     if (!prompt.trim()) return;
@@ -460,7 +462,7 @@ export default function AIPostGenerator() {
                 </div>
 
                 {/* Context Status */}
-                {useJournalContext && (
+                {useJournalContext && selectedJournalEntries.length > 0 && (
                   <div className="border p-3 rounded-lg bg-blue-50">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-blue-800">
