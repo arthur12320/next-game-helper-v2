@@ -29,6 +29,7 @@ export default async function Navbar() {
     { name: "Invites", href: "/campaigns/invites" },
     { name: "Assets", href: "/assets" },
     { name: "Mouse Creation", href: "/mouse-character-creation" },
+    { name: "~U/C~ Ai Generator", href: "/api-post-generator" },
   ];
 
   return (
