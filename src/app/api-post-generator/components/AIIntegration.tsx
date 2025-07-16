@@ -1,5 +1,7 @@
 "use client";
 
+import { SelectAdventureJournal } from "@/db/schema/adventure-journal";
+
 interface AIGenerationParams {
   prompt: string;
   postType: string;
@@ -161,6 +163,142 @@ Length: ${length}`;
     }
 
     throw new Error("Failed to generate content. Please try again.");
+  }
+}
+
+export async function mergeJournalEntries(
+  entries: SelectAdventureJournal[],
+  apiKey: string
+): Promise<string> {
+  if (entries.length < 2) {
+    throw new Error("At least 2 entries are required for merging");
+  }
+
+  const entriesToMerge = entries
+    .map((entry) => `**${entry.title}**\n${entry.content}`)
+    .join("\n\n---\n\n");
+
+  const mergePrompt = `You are helping to consolidate adventure journal entries for a Mouse Guard RPG campaign. 
+
+Please merge the following journal entries into a single, concise entry that:
+- Maintains all important story elements and character details
+- Preserves chronological order of events
+- Eliminates redundancy while keeping essential information
+- Uses a narrative flow that connects the events naturally
+- Maintains the Mouse Guard setting and tone
+
+Entries to merge:
+
+${entriesToMerge}
+
+Please provide a well-structured, consolidated entry that captures the essence of all the provided entries.`;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a helpful assistant specializing in consolidating RPG adventure notes while preserving important details and narrative flow.",
+          },
+          {
+            role: "user",
+            content: mergePrompt,
+          },
+        ],
+        max_tokens: 1000,
+        temperature: 0.3,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || "Failed to merge entries");
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
+  } catch (error) {
+    console.error("Error merging entries:", error);
+    throw new Error(
+      `Failed to merge entries: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+  }
+}
+
+export async function summarizeJournalEntry(
+  entry: SelectAdventureJournal,
+  apiKey: string
+): Promise<string> {
+  const summarizePrompt = `You are helping to create concise summaries of adventure journal entries for a Mouse Guard RPG campaign.
+
+Please summarize the following journal entry into a brief, informative summary of 150 characters that:
+- Captures the key events or information
+- Maintains the Mouse Guard setting and tone
+- Is suitable for quick reference
+- Preserves the most important details
+
+Original entry:
+**${entry.title}**
+${entry.content}
+
+Please provide only the summary text, nothing else.`;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a helpful assistant specializing in creating concise summaries of RPG adventure notes. Always respond with just the summary text, no additional formatting or explanation.",
+          },
+          {
+            role: "user",
+            content: summarizePrompt,
+          },
+        ],
+        max_tokens: 100,
+        temperature: 0.3,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || "Failed to summarize entry");
+    }
+
+    const data = await response.json();
+    const summary = data.choices[0].message.content.trim();
+
+    // Ensure the summary is within the character limit
+    if (summary.length > 150) {
+      return summary.substring(0, 147) + "...";
+    }
+
+    return summary;
+  } catch (error) {
+    console.error("Error summarizing entry:", error);
+    throw new Error(
+      `Failed to summarize entry: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
   }
 }
 

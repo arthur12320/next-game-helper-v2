@@ -32,10 +32,13 @@ import {
   Plus,
   Minus,
   Trash2,
+  FileText,
 } from "lucide-react";
 import {
   generateMouseGuardContent,
   checkContextLimits,
+  mergeJournalEntries,
+  summarizeJournalEntry,
 } from "./components/AIIntegration";
 import APIKeyManager from "./components/APIKeyManager";
 import BlogIntegration from "./components/BlogIntegration";
@@ -43,8 +46,9 @@ import {
   createJournalEntry,
   fetchJournalEntries,
   deleteJournalEntry,
+  updateJournalEntry,
 } from "@/app/actions/adventure-journal";
-import { SelectAdventureJournal } from "@/db/schema/adventure-journal";
+import type { SelectAdventureJournal } from "@/db/schema/adventure-journal";
 
 interface GeneratedPost {
   id: string;
@@ -146,6 +150,20 @@ export default function AIPostGenerator() {
   const [showContextPreview, setShowContextPreview] = useState(false);
   const [customContext, setCustomContext] = useState("");
 
+  // Merge functionality state
+  const [isMerging, setIsMerging] = useState(false);
+  const [mergeResult, setMergeResult] = useState("");
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [mergeTitle, setMergeTitle] = useState("");
+
+  // Summarize functionality state
+  const [summarizingEntries, setSummarizingEntries] = useState<Set<string>>(
+    new Set()
+  );
+  const [summaryResult, setSummaryResult] = useState("");
+  const [showSummaryDialog, setShowSummaryDialog] = useState(false);
+  const [summaryEntryId, setSummaryEntryId] = useState("");
+
   useEffect(() => {
     // Initialize API key from localStorage on component mount
     const savedApiKey = localStorage.getItem("openai_api_key");
@@ -156,7 +174,6 @@ export default function AIPostGenerator() {
     // Load journal entries
     loadJournalEntries();
   }, []);
-
 
   const loadJournalEntries = async () => {
     try {
@@ -170,7 +187,6 @@ export default function AIPostGenerator() {
       setIsLoadingJournal(false);
     }
   };
-
 
   const generateAIResponse = async () => {
     if (!prompt.trim()) return;
@@ -341,6 +357,140 @@ export default function AIPostGenerator() {
 
   const contextLength = getContextPreview().length;
   const estimatedTokens = Math.ceil(contextLength / 4); // Rough token estimation
+
+  const mergeSelectedEntries = async () => {
+    if (selectedJournalEntries.length < 2) {
+      alert("Please select at least 2 entries to merge");
+      return;
+    }
+
+    if (!apiKey.trim()) {
+      alert("Please configure your OpenAI API key first");
+      return;
+    }
+
+    setIsMerging(true);
+    setMergeResult("");
+
+    try {
+      const selectedEntries = adventureJournal.filter((entry) =>
+        selectedJournalEntries.includes(entry.id)
+      );
+
+      const mergedContent = await mergeJournalEntries(selectedEntries, apiKey);
+
+      setMergeResult(mergedContent);
+      setMergeTitle(`Merged Entry - ${new Date().toLocaleDateString()}`);
+      setShowMergeDialog(true);
+    } catch (error) {
+      console.error("Error merging entries:", error);
+      alert(
+        `Failed to merge entries: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
+  const confirmMerge = async () => {
+    if (!mergeTitle.trim() || !mergeResult.trim()) {
+      alert("Please provide a title for the merged entry");
+      return;
+    }
+
+    try {
+      // Create the new merged entry
+      await createJournalEntry({
+        title: mergeTitle,
+        content: mergeResult,
+        tags: ["merged"], // Add a tag to identify merged entries
+      });
+
+      // Delete the selected entries
+      for (const entryId of selectedJournalEntries) {
+        await deleteJournalEntry(entryId);
+      }
+
+      // Reload journal entries
+      await loadJournalEntries();
+
+      // Reset states
+      setSelectedJournalEntries([]);
+      setShowMergeDialog(false);
+      setMergeResult("");
+      setMergeTitle("");
+
+      alert("Entries merged successfully!");
+    } catch (error) {
+      console.error("Error confirming merge:", error);
+      alert("Failed to complete merge operation");
+    }
+  };
+
+  const summarizeEntry = async (entry: SelectAdventureJournal) => {
+    if (!apiKey.trim()) {
+      alert("Please configure your OpenAI API key first");
+      return;
+    }
+
+    setSummarizingEntries((prev) => new Set(prev).add(entry.id));
+
+    try {
+      const summary = await summarizeJournalEntry(entry, apiKey);
+      setSummaryResult(summary);
+      setSummaryEntryId(entry.id);
+      setShowSummaryDialog(true);
+    } catch (error) {
+      console.error("Error summarizing entry:", error);
+      alert(
+        `Failed to summarize entry: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setSummarizingEntries((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(entry.id);
+        return newSet;
+      });
+    }
+  };
+
+  const confirmSummary = async () => {
+    if (!summaryResult.trim() || !summaryEntryId) {
+      alert("Summary is empty or entry ID is missing");
+      return;
+    }
+
+    try {
+      const originalEntry = adventureJournal.find(
+        (entry) => entry.id === summaryEntryId
+      );
+      if (!originalEntry) {
+        throw new Error("Original entry not found");
+      }
+
+      await updateJournalEntry(summaryEntryId, {
+        content: summaryResult,
+        tags: [...(originalEntry.tags || []), "summarized"],
+      });
+
+      // Reload journal entries
+      await loadJournalEntries();
+
+      // Reset states
+      setShowSummaryDialog(false);
+      setSummaryResult("");
+      setSummaryEntryId("");
+
+      alert("Entry summarized successfully!");
+    } catch (error) {
+      console.error("Error confirming summary:", error);
+      alert("Failed to update entry with summary");
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
@@ -705,6 +855,27 @@ export default function AIPostGenerator() {
                       <Minus className="w-3 h-3 mr-1" />
                       Clear
                     </Button>
+                    {selectedJournalEntries.length >= 2 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={mergeSelectedEntries}
+                        disabled={isMerging}
+                        className="bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+                      >
+                        {isMerging ? (
+                          <>
+                            <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                            Merging...
+                          </>
+                        ) : (
+                          <>
+                            <Brain className="w-3 h-3 mr-1" />
+                            Merge ({selectedJournalEntries.length})
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -836,6 +1007,19 @@ export default function AIPostGenerator() {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => summarizeEntry(entry)}
+                          disabled={summarizingEntries.has(entry.id)}
+                          className="text-green-600 hover:text-green-800"
+                        >
+                          {summarizingEntries.has(entry.id) ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <FileText className="w-4 h-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleDeleteEntry(entry.id)}
                           className="text-red-600 hover:text-red-800"
                         >
@@ -862,6 +1046,139 @@ export default function AIPostGenerator() {
                   </p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Merge Dialog */}
+          {showMergeDialog && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <Card className="w-full max-w-4xl max-h-[90vh] overflow-hidden">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Brain className="w-5 h-5 text-purple-600" />
+                      Merge Preview
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowMergeDialog(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 overflow-y-auto max-h-[60vh]">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Title for Merged Entry
+                    </label>
+                    <Input
+                      value={mergeTitle}
+                      onChange={(e) => setMergeTitle(e.target.value)}
+                      placeholder="Enter title for the merged entry..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Merged Content
+                    </label>
+                    <div className="bg-gray-50 p-4 rounded-lg border max-h-96 overflow-y-auto">
+                      <div className="whitespace-pre-wrap text-gray-800">
+                        {mergeResult}
+                      </div>
+                    </div>
+                  </div>
+
+                  <Alert className="border-amber-200 bg-amber-50">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-amber-800">
+                      This will replace the {selectedJournalEntries.length}{" "}
+                      selected entries with this single merged entry. This
+                      action cannot be undone.
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowMergeDialog(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={confirmMerge}
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      Confirm Merge
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Summary Dialog */}
+          {showSummaryDialog && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <Card className="w-full max-w-2xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-green-600" />
+                      Summary Preview
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSummaryDialog(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Summarized Content ({summaryResult.length}/150 characters)
+                    </label>
+                    <Textarea
+                      value={summaryResult}
+                      onChange={(e) =>
+                        setSummaryResult(e.target.value.substring(0, 150))
+                      }
+                      rows={3}
+                      className="resize-none"
+                      placeholder="AI-generated summary will appear here..."
+                    />
+                  </div>
+
+                  <Alert className="border-amber-200 bg-amber-50">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-amber-800">
+                      This will replace the original entry content with this
+                      summary. The original content will be lost. This action
+                      cannot be undone.
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowSummaryDialog(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={confirmSummary}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      Confirm Summary
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </TabsContent>
