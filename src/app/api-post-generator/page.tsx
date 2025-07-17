@@ -33,6 +33,7 @@ import {
   Minus,
   Trash2,
   FileText,
+  Settings,
 } from "lucide-react";
 import {
   generateMouseGuardContent,
@@ -49,6 +50,10 @@ import {
   updateJournalEntry,
 } from "@/app/actions/adventure-journal";
 import type { SelectAdventureJournal } from "@/db/schema/adventure-journal";
+import PromptTemplates, {
+  type PromptTemplates as PromptTemplatesType,
+  DEFAULT_TEMPLATES,
+} from "./components/PromptTemplate";
 
 interface GeneratedPost {
   id: string;
@@ -132,6 +137,8 @@ export default function AIPostGenerator() {
   const [generatedPosts, setGeneratedPosts] = useState<GeneratedPost[]>([]);
   const [currentResponse, setCurrentResponse] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [promptTemplates, setPromptTemplates] =
+    useState<PromptTemplatesType>(DEFAULT_TEMPLATES);
 
   // Database state
   const [adventureJournal, setAdventureJournal] = useState<
@@ -230,6 +237,7 @@ export default function AIPostGenerator() {
         tone,
         length,
         context: fullContext,
+        templates: promptTemplates,
       });
 
       const newPost: GeneratedPost = {
@@ -377,7 +385,11 @@ export default function AIPostGenerator() {
         selectedJournalEntries.includes(entry.id)
       );
 
-      const mergedContent = await mergeJournalEntries(selectedEntries, apiKey);
+      const mergedContent = await mergeJournalEntries(
+        selectedEntries,
+        apiKey,
+        promptTemplates
+      );
 
       setMergeResult(mergedContent);
       setMergeTitle(`Merged Entry - ${new Date().toLocaleDateString()}`);
@@ -438,7 +450,11 @@ export default function AIPostGenerator() {
     setSummarizingEntries((prev) => new Set(prev).add(entry.id));
 
     try {
-      const summary = await summarizeJournalEntry(entry, apiKey);
+      const summary = await summarizeJournalEntry(
+        entry,
+        apiKey,
+        promptTemplates
+      );
       setSummaryResult(summary);
       setSummaryEntryId(entry.id);
       setShowSummaryDialog(true);
@@ -506,7 +522,7 @@ export default function AIPostGenerator() {
       </div>
 
       <Tabs defaultValue="generator" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="generator" className="flex items-center gap-2">
             <Sparkles className="w-4 h-4" />
             Generator
@@ -514,6 +530,10 @@ export default function AIPostGenerator() {
           <TabsTrigger value="journal" className="flex items-center gap-2">
             <BookOpen className="w-4 h-4" />
             Adventure Journal
+          </TabsTrigger>
+          <TabsTrigger value="prompts" className="flex items-center gap-2">
+            <Settings className="w-4 h-4" />
+            Prompts
           </TabsTrigger>
           <TabsTrigger value="settings" className="flex items-center gap-2">
             <Eye className="w-4 h-4" />
@@ -1181,6 +1201,10 @@ export default function AIPostGenerator() {
               </Card>
             </div>
           )}
+        </TabsContent>
+        {/* Prompt Templates Tab */}
+        <TabsContent value="prompts" className="space-y-6">
+          <PromptTemplates onTemplatesChange={setPromptTemplates} />
         </TabsContent>
       </Tabs>
     </div>

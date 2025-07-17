@@ -1,6 +1,7 @@
 "use client";
 
 import { SelectAdventureJournal } from "@/db/schema/adventure-journal";
+import { DEFAULT_TEMPLATES, type PromptTemplates } from "./PromptTemplate";
 
 interface AIGenerationParams {
   prompt: string;
@@ -8,6 +9,7 @@ interface AIGenerationParams {
   tone: string;
   length: string;
   context?: string;
+  templates?: PromptTemplates;
 }
 
 interface OpenAIMessage {
@@ -29,44 +31,62 @@ interface OpenAIResponse {
   };
 }
 
+// Helper function to replace template variables
+function replaceTemplateVariables(
+  template: string,
+  variables: Record<string, string>
+): string {
+  let result = template;
+  Object.entries(variables).forEach(([key, value]) => {
+    const placeholder = `{{${key}}}`;
+    result = result.replace(
+      new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
+      value
+    );
+  });
+  return result;
+}
+
 export async function generateMouseGuardContent({
   prompt,
   postType,
   tone,
   length,
   context = "",
+  templates = DEFAULT_TEMPLATES,
 }: AIGenerationParams): Promise<string> {
-  const systemPrompt = `You are a creative writing assistant specializing in Mouse Guard RPG content. 
+  const template = templates.contentGeneration;
 
-Mouse Guard is a tabletop RPG where players are anthropomorphic mice who serve as guardians protecting mouse settlements from predators and other dangers. The setting is medieval fantasy with a focus on:
-- Small-scale adventures from a mouse perspective
-- Seasonal challenges and natural dangers
-- Honor, duty, and protecting the innocent
-- Rich world-building with mouse cities, territories, and culture
-
-${
-  context
+  // Prepare context section
+  const contextSection = context
     ? `
 ADVENTURE CONTEXT (Previous events and story elements to maintain continuity):
 ${context}
 
 Please reference and build upon these previous events when appropriate, maintaining story continuity and character consistency.
 `
-    : ""
-}
+    : "";
 
-Generate content that is:
-- Appropriate for the Mouse Guard setting and tone
-- Engaging for tabletop RPG play-by-post games
-- Rich in sensory details and atmosphere
-- Focused on the mouse perspective and scale
-${context ? "- Consistent with the provided adventure context" : ""}
+  const contextConsistency = context
+    ? "- Consistent with the provided adventure context"
+    : "";
 
-Post Type: ${postType}
-Tone: ${tone}
-Length: ${length}`;
+  // Replace variables in system prompt
+  const systemPrompt = replaceTemplateVariables(template.systemPrompt, {
+    CONTEXT_SECTION: contextSection,
+    CONTEXT_CONSISTENCY: contextConsistency,
+    POST_TYPE: postType,
+    TONE: tone,
+    LENGTH: length,
+  });
 
-  const userPrompt = `Create ${postType} content with a ${tone} tone in ${length} format based on this prompt: ${prompt}`;
+  // Replace variables in user prompt
+  const userPrompt = replaceTemplateVariables(template.userPromptTemplate, {
+    POST_TYPE: postType,
+    TONE: tone,
+    LENGTH: length,
+    PROMPT: prompt,
+  });
 
   const messages: OpenAIMessage[] = [
     {
@@ -168,30 +188,22 @@ Length: ${length}`;
 
 export async function mergeJournalEntries(
   entries: SelectAdventureJournal[],
-  apiKey: string
+  apiKey: string,
+  templates: PromptTemplates = DEFAULT_TEMPLATES
 ): Promise<string> {
   if (entries.length < 2) {
     throw new Error("At least 2 entries are required for merging");
   }
 
+  const template = templates.mergeEntries;
   const entriesToMerge = entries
     .map((entry) => `**${entry.title}**\n${entry.content}`)
     .join("\n\n---\n\n");
 
-  const mergePrompt = `You are helping to consolidate adventure journal entries for a Mouse Guard RPG campaign. 
-
-Please merge the following journal entries into a single, concise entry that:
-- Maintains all important story elements and character details
-- Preserves chronological order of events
-- Eliminates redundancy while keeping essential information
-- Uses a narrative flow that connects the events naturally
-- Maintains the Mouse Guard setting and tone
-
-Entries to merge:
-
-${entriesToMerge}
-
-Please provide a well-structured, consolidated entry that captures the essence of all the provided entries.`;
+  // Replace variables in user prompt
+  const userPrompt = replaceTemplateVariables(template.userPromptTemplate, {
+    ENTRIES_TO_MERGE: entriesToMerge,
+  });
 
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -205,12 +217,11 @@ Please provide a well-structured, consolidated entry that captures the essence o
         messages: [
           {
             role: "system",
-            content:
-              "You are a helpful assistant specializing in consolidating RPG adventure notes while preserving important details and narrative flow.",
+            content: template.systemPrompt,
           },
           {
             role: "user",
-            content: mergePrompt,
+            content: userPrompt,
           },
         ],
         max_tokens: 1000,
@@ -237,21 +248,16 @@ Please provide a well-structured, consolidated entry that captures the essence o
 
 export async function summarizeJournalEntry(
   entry: SelectAdventureJournal,
-  apiKey: string
+  apiKey: string,
+  templates: PromptTemplates = DEFAULT_TEMPLATES
 ): Promise<string> {
-  const summarizePrompt = `You are helping to create concise summaries of adventure journal entries for a Mouse Guard RPG campaign.
+  const template = templates.summarizeEntry;
 
-Please summarize the following journal entry into a brief, informative summary of 150 characters that:
-- Captures the key events or information
-- Maintains the Mouse Guard setting and tone
-- Is suitable for quick reference
-- Preserves the most important details
-
-Original entry:
-**${entry.title}**
-${entry.content}
-
-Please provide only the summary text, nothing else.`;
+  // Replace variables in user prompt
+  const userPrompt = replaceTemplateVariables(template.userPromptTemplate, {
+    ENTRY_TITLE: entry.title,
+    ENTRY_CONTENT: entry.content,
+  });
 
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -265,12 +271,11 @@ Please provide only the summary text, nothing else.`;
         messages: [
           {
             role: "system",
-            content:
-              "You are a helpful assistant specializing in creating concise summaries of RPG adventure notes. Always respond with just the summary text, no additional formatting or explanation.",
+            content: template.systemPrompt,
           },
           {
             role: "user",
-            content: summarizePrompt,
+            content: userPrompt,
           },
         ],
         max_tokens: 100,
