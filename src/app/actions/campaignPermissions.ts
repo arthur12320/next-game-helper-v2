@@ -1,10 +1,9 @@
 import db from "@/db";
-import { campaignPlayers, campaigns } from "@/db/schema";
-import { and, eq, or } from "drizzle-orm";
 import { auth } from "../../../auth";
 
 // 🔐 **Checks if the user has access to a campaign**
 export async function userHasAccessToCampaign(campaignId: string): Promise<boolean> {
+    console.log(campaignId)
     const session = await auth();
     if (!session?.user) return false; // Not authenticated
 

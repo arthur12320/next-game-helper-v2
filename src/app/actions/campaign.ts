@@ -24,7 +24,7 @@ export async function fetchCampaigns() {
 }
 
 export async function fetchCampaign(campaignId: string) {
-  // if (!(await userHasAccessToCampaign(campaignId))) return null;
+  if (!(await userHasAccessToCampaign(campaignId))) return null;
 
   return await db
     .select()

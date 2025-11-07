@@ -2,7 +2,7 @@
 
 import db from "@/db";
 import { campaignPlayers, campaigns } from "@/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { auth } from "../../../auth"; // Assuming you have auth setup
 
 // 🚀 Fetch campaigns for the logged-in user
@@ -10,15 +10,15 @@ export async function fetchParticipatingCampaigns() {
   const session = await auth();
   if (!session?.user) return [];
 
-  const userId = session.user.id as string;
+  // const userId = session.user.id as string;
 
-  // Fetch campaigns where the user is a player
-  const playerCampaigns = await db
-    .select({ campaignId: campaignPlayers.campaignId })
-    .from(campaignPlayers)
-    .where(eq(campaignPlayers.playerId, userId));
+  // // Fetch campaigns where the user is a player
+  // const playerCampaigns = await db
+  //   .select({ campaignId: campaignPlayers.campaignId })
+  //   .from(campaignPlayers)
+  //   .where(eq(campaignPlayers.playerId, userId));
 
-  const playerCampaignIds = playerCampaigns.map((p) => p.campaignId);
+  // const playerCampaignIds = playerCampaigns.map((p) => p.campaignId);
 
   // Fetch campaigns where the user is the creator, DM, or a player
   return await db

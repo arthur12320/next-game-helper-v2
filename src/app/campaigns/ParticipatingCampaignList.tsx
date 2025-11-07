@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { fetchParticipatingCampaigns } from "../actions/campaignPlayers";
-import LeaveCampaignButton from "./LeaveCampaignButton";
 
 export default async function ParticipatingCampaignList() {
   const campaigns = await fetchParticipatingCampaigns();

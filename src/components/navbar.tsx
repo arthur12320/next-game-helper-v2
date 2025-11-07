@@ -20,7 +20,6 @@ import { Suspense } from "react";
 import { auth } from "../../auth";
 import { ThemeToggle } from "./ThemeToggle";
 import AuthButton from "./authButton";
-import { NotificationBellWrapper } from "./notifications/NotificationBellWrapper";
 
 export default async function Navbar() {
   const session = await auth();
