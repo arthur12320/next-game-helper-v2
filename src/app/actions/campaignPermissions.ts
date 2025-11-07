@@ -8,32 +8,34 @@ export async function userHasAccessToCampaign(campaignId: string): Promise<boole
     const session = await auth();
     if (!session?.user) return false; // Not authenticated
 
-    const userId = session.user.id as string;
+    return true
 
-    // Check if the user is the campaign owner or DM
-    const campaign = await db
-        .select({ id: campaigns.id })
-        .from(campaigns)
-        .where(
-            and(
-                eq(campaigns.id, campaignId),
-                or(eq(campaigns.creatorId, userId), eq(campaigns.dmId, userId))
-            )
-        )
-        .limit(1);
+    // const userId = session.user.id as string;
 
-    if (campaign.length > 0) return true; // User is the owner or GM
+    // // Check if the user is the campaign owner or DM
+    // const campaign = await db
+    //     .select({ id: campaigns.id })
+    //     .from(campaigns)
+    //     .where(
+    //         and(
+    //             eq(campaigns.id, campaignId),
+    //             or(eq(campaigns.creatorId, userId), eq(campaigns.dmId, userId))
+    //         )
+    //     )
+    //     .limit(1);
 
-    // Check if the user is a player in this campaign
-    const isPlayer = await db
-        .select({ id: campaignPlayers.playerId })
-        .from(campaignPlayers)
-        .where(
-            and(eq(campaignPlayers.campaignId, campaignId), eq(campaignPlayers.playerId, userId))
-        )
-        .limit(1);
+    // if (campaign.length > 0) return true; // User is the owner or GM
 
-    return isPlayer.length > 0; // True if user is a player
+    // // Check if the user is a player in this campaign
+    // const isPlayer = await db
+    //     .select({ id: campaignPlayers.playerId })
+    //     .from(campaignPlayers)
+    //     .where(
+    //         and(eq(campaignPlayers.campaignId, campaignId), eq(campaignPlayers.playerId, userId))
+    //     )
+    //     .limit(1);
+
+    // return isPlayer.length > 0; // True if user is a player
 }
 
 export async function isCampaignOwner(campaignId: string): Promise<boolean> {

@@ -26,10 +26,7 @@ export default async function Navbar() {
   const session = await auth();
   const navItems = [
     { name: "Campaigns", href: "/campaigns" },
-    { name: "Invites", href: "/campaigns/invites" },
     { name: "Assets", href: "/assets" },
-    { name: "Mouse Creation", href: "/mouse-character-creation" },
-    { name: "~U/C~ Ai Generator", href: "/api-post-generator" },
   ];
 
   return (
@@ -90,11 +87,11 @@ export default async function Navbar() {
           </NavigationMenuList>
         </NavigationMenu>
         <div className="flex flex-1 items-center justify-end space-x-4 w-full">
-          {session?.user && (
+          {/* {session?.user && (
             <Suspense fallback={<div className="w-9 h-9" />}>
               <NotificationBellWrapper />
             </Suspense>
-          )}
+          )} */}
           <ThemeToggle />
           <nav className="flex items-center space-x-2">
             <Suspense>

@@ -16,7 +16,7 @@ export default async function ParticipatingCampaignList() {
             <h3 className="text-lg font-semibold">{campaign.name}</h3>
             <p className="text-gray-600">{campaign.description}</p>
           </Link>
-          <LeaveCampaignButton id={campaign.id} />
+          {/* <LeaveCampaignButton id={campaign.id} /> */}
         </li>
       ))}
     </ul>

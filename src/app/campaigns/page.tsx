@@ -12,7 +12,7 @@ export default function CampaignsPage() {
         <CampaignList />
       </Suspense>
 
-      <h1 className="text-2xl font-bold mb-4">Participating Campaings</h1>
+      <h1 className="text-2xl font-bold mb-4">All Campaings</h1>
       <Suspense fallback={<ParticipatingCampaignList.Skeleton />}>
         <ParticipatingCampaignList />
       </Suspense>

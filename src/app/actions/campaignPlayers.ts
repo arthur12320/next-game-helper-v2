@@ -24,7 +24,7 @@ export async function fetchParticipatingCampaigns() {
   return await db
     .select()
     .from(campaigns)
-    .where(inArray(campaigns.id, playerCampaignIds));
+
 }
 
 // ❌ **Abandon Campaign**
