@@ -1,6 +1,7 @@
 import { fetchCampaigns } from "@/app/actions/campaign";
 import DeleteCampaignButton from "./DeleteCampaignButton";
 import Link from "next/link";
+import EditCampaignButton from "@/components/EditCampaignButton";
 
 export default async function CampaignList() {
   const campaigns = await fetchCampaigns();
@@ -13,7 +14,10 @@ export default async function CampaignList() {
           <h3 className="text-lg font-semibold">{campaign.name}</h3>
           <p className="text-gray-600">{campaign.description}</p>
         </Link>
-        <DeleteCampaignButton id={campaign.id} />
+        <div className="flex gap-2">
+          <EditCampaignButton campaign={campaign} />
+          <DeleteCampaignButton id={campaign.id} />
+        </div>
       </li>
     ))}
   </ul>

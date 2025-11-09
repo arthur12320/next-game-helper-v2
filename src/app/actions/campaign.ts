@@ -48,6 +48,31 @@ export async function createCampaign(name: string, description: string) {
   revalidatePath("/campaigns");
 }
 
+// 🚀 Edit (update) an existing campaign
+export async function editCampaign(
+  id: string,
+  updates: { name?: string; description?: string }
+) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  // ✅ Check access permission
+  const canEdit = await userHasAccessToCampaign(id);
+  if (!canEdit) throw new Error("Access denied");
+
+  // ✅ Only update provided fields
+  const updateData: Partial<typeof campaigns.$inferInsert> = {};
+  if (updates.name !== undefined) updateData.name = updates.name;
+  if (updates.description !== undefined) updateData.description = updates.description;
+
+  if (Object.keys(updateData).length === 0)
+    throw new Error("No valid fields to update");
+
+  await db.update(campaigns).set(updateData).where(eq(campaigns.id, id));
+
+  revalidatePath("/campaigns");
+}
+
 // 🚀 Delete a campaign
 export async function deleteCampaign(id: string) {
   const session = await auth();
