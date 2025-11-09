@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import AddChapterForm from "./AddChapterForm";
 import ChapterList from "./ChapterList";
+import SessionList from "@/components/session-list";
+import CreateSessionForm from "@/components/create-session-form";
 
 export default async function CampaignChapters({
   params,
@@ -27,6 +29,9 @@ export default async function CampaignChapters({
       </div>
       {/* Add Chapter Form */}
       <AddChapterForm campaignId={campaignId} />
+
+      <SessionList campaignId={campaignId}/> 
+      <CreateSessionForm campaignId={campaignId} />
 
       {/* Chapters List */}
       <Suspense fallback={<ChapterList.skeleton />}>
