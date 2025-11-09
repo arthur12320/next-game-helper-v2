@@ -70,7 +70,7 @@ export function Step3Lifepaths() {
         <Card>
           <CardHeader>
             <CardTitle>Your Career History</CardTitle>
-            <CardDescription>Lifepaths you've completed ({lifepaths.length}/2)</CardDescription>
+            <CardDescription>{`Lifepaths you've completed ${lifepaths.length/2}`}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">

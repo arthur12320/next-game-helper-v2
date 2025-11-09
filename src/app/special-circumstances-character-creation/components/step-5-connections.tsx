@@ -10,7 +10,7 @@ import { ChevronLeft, Plus, X, Users2, Download } from "lucide-react"
 import { LIFEPATHS } from "@/lib/character-data"
 
 export function Step5Connections() {
-  const { character, updateCharacter, setCurrentStep } = useCharacter()
+  const { character, setCurrentStep } = useCharacter()
   const [connections, setConnections] = useState<string[]>(character.connections || [])
   const [newConnection, setNewConnection] = useState("")
   const [characterName, setCharacterName] = useState("")
@@ -26,10 +26,10 @@ export function Step5Connections() {
     setConnections(connections.filter((_, i) => i !== index))
   }
 
-  const handleComplete = () => {
-    updateCharacter({ connections })
-    alert("Character creation complete! In a full implementation, this would generate a character sheet.")
-  }
+  // const handleComplete = () => {
+  //   updateCharacter({ connections })
+  //   alert("Character creation complete! In a full implementation, this would generate a character sheet.")
+  // }
 
   const exportCharacterMarkdown = () => {
     if (!characterName.trim()) {

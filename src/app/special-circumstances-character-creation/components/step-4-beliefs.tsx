@@ -66,9 +66,9 @@ export function Step4Beliefs() {
             <div className="p-3 bg-muted rounded-lg text-sm">
               <p className="font-medium mb-1">Example Beliefs:</p>
               <ul className="space-y-1 text-muted-foreground">
-                <li>• "Every life matters, no matter the cost to save them."</li>
-                <li>• "Information is power. Knowledge should be free."</li>
-                <li>• "The Culture's ideals are worth protecting, even from itself."</li>
+                <li>{`• "Every life matters, no matter the cost to save them."`}</li>
+                <li>{`• "Information is power. Knowledge should be free."`}</li>
+                <li>{`• "The Culture's ideals are worth protecting, even from itself."`}</li>
               </ul>
             </div>
           </CardContent>
@@ -100,9 +100,9 @@ export function Step4Beliefs() {
             <div className="p-3 bg-muted rounded-lg text-sm">
               <p className="font-medium mb-1">Example Instincts:</p>
               <ul className="space-y-1 text-muted-foreground">
-                <li>• "Always scan for surveillance before speaking."</li>
-                <li>• "Never trust a deal that seems too good."</li>
-                <li>• "When threatened, strike first."</li>
+                <li>{`• "Always scan for surveillance before speaking."`}</li>
+                <li>{`• "Never trust a deal that seems too good."`}</li>
+                <li>{`• "When threatened, strike first."`}</li>
               </ul>
             </div>
           </CardContent>
