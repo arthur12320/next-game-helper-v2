@@ -11,6 +11,8 @@ export { posts } from "./posts";
 export { default as sessions } from "./sessions";
 export { default as users } from "./users";
 export { adventureJournal } from "./adventure-journal";
+export { rpgsessions } from "./rpgSessions";
+export { sessionPresence } from "./rpgSessions";
 
 // Then export the relations (if needed)
 export { campaignInviteRelations } from "./campaignInvites";

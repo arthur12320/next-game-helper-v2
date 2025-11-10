@@ -28,10 +28,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
       return true; // Allow login
     },
+    async session({ session }) {
+      return session;
+    },
   },
   pages: {
-    signIn: '/',
-    signOut: '/',
-    error: '/auth/error',
-  }
+    signIn: "/",
+    signOut: "/",
+    error: "/auth/error",
+  },
 });
