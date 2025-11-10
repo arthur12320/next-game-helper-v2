@@ -34,7 +34,7 @@ import {
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useSession } from "next-auth/react";
-import { Session, SessionNotes } from "@/db/schema/rpgSessions";
+import type { Session, SessionNotes } from "@/db/schema/rpgSessions";
 
 interface SessionTrackerProps {
   session: Session;
@@ -55,16 +55,37 @@ export default function SessionTracker({
     return initialSession.notes as SessionNotes;
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [activeUsers, setActiveUsers] = useState(initialActiveUsers);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [lastUpdated, setLastUpdated] = useState(
-    new Date(initialSession.updatedAt)
-  );
+  // const [lastUpdated, setLastUpdated] = useState(
+  //   new Date(initialSession.updatedAt)
+  // );
   const [isOnline, setIsOnline] = useState(true);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const lastSaveRef = useRef<Date>(new Date());
-  const pollIntervalRef = useRef<NodeJS.Timeout>(null);
-  const presenceIntervalRef = useRef<NodeJS.Timeout>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const presenceIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const autoSave = useCallback(() => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    autoSaveTimerRef.current = setTimeout(() => {
+      if (hasUnsavedChanges) {
+        startTransition(async () => {
+          try {
+            await updateSessionNotes(initialSession.id, notes);
+            lastSaveRef.current = new Date();
+            setHasUnsavedChanges(false);
+            console.log("[v0] Auto-saved changes");
+          } catch (error) {
+            console.error("[v0] Failed to auto-save:", error);
+          }
+        });
+      }
+    }, 3000); // Auto-save after 3 seconds of inactivity
+  }, [hasUnsavedChanges, notes, initialSession.id]);
 
   useEffect(() => {
     console.log(sessionData);
@@ -75,59 +96,88 @@ export default function SessionTracker({
       initialSession.id
     );
 
-    // Poll for updates every 2 seconds
     pollIntervalRef.current = setInterval(async () => {
-      console.log("here");
+      if (document.hidden) return;
+
+      console.log("[v0] Polling for updates");
       try {
         const data = await getSessionData(initialSession.id);
 
-        // Only update if the data is newer than our last save
         const serverUpdated = new Date(data.session.updatedAt);
-        if (serverUpdated > lastSaveRef.current) {
+        if (serverUpdated > lastSaveRef.current && !hasUnsavedChanges) {
           console.log("[v0] Received updates from server", {
             serverUpdated,
             lastSave: lastSaveRef.current,
           });
 
-          // Parse notes if they're a string
           const serverNotes =
             typeof data.session.notes === "string"
               ? JSON.parse(data.session.notes)
               : (data.session.notes as SessionNotes);
 
           setNotes(serverNotes);
-          setLastUpdated(serverUpdated);
+          // setLastUpdated(serverUpdated);
         }
 
-        // setActiveUsers(data.activeUsers);
+        setActiveUsers(data.activeUsers);
         setIsOnline(true);
       } catch (error) {
         console.error("[v0] Failed to fetch session updates:", error);
         setIsOnline(false);
       }
-    }, 5000);
+    }, 30000);
 
-    // Update presence every 10 seconds
     presenceIntervalRef.current = setInterval(async () => {
+      if (document.hidden) return;
+
       try {
-        await updatePresence(initialSession.id, sessionData?.user?.email || "");
+        await updatePresence(initialSession.id);
       } catch (error) {
         console.error("[v0] Failed to update presence:", error);
       }
-    }, 10000);
+    }, 60000);
 
-    // Initial presence update
-    updatePresence(initialSession.id, sessionData.user.id).catch(console.error);
+    updatePresence(initialSession.id).catch(console.error);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden && sessionData?.user?.id) {
+        getSessionData(initialSession.id)
+          .then((data) => {
+            const serverUpdated = new Date(data.session.updatedAt);
+            if (serverUpdated > lastSaveRef.current && !hasUnsavedChanges) {
+              const serverNotes =
+                typeof data.session.notes === "string"
+                  ? JSON.parse(data.session.notes)
+                  : (data.session.notes as SessionNotes);
+              setNotes(serverNotes);
+              // setLastUpdated(serverUpdated);
+            }
+            setActiveUsers(data.activeUsers);
+            setIsOnline(true);
+          })
+          .catch(console.error);
+
+        updatePresence(initialSession.id).catch(console.error);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       console.log("[v0] Cleaning up real-time polling");
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       if (presenceIntervalRef.current)
         clearInterval(presenceIntervalRef.current);
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [initialSession.id, initialSession.status, sessionData?.user?.id]);
+  }, [
+    initialSession.id,
+    initialSession.status,
+    sessionData,
+    hasUnsavedChanges,
+  ]);
 
-  // Event tracking
   const [newEvent, setNewEvent] = useState("");
 
   const addEvent = useCallback(() => {
@@ -138,22 +188,10 @@ export default function SessionTracker({
       events: [...prev.events, { timestamp, description: newEvent }],
     }));
     setNewEvent("");
-    setTimeout(() => {
-      startTransition(async () => {
-        try {
-          await updateSessionNotes(initialSession.id, {
-            ...notes,
-            events: [...notes.events, { timestamp, description: newEvent }],
-          });
-          lastSaveRef.current = new Date();
-        } catch (error) {
-          console.error("[v0] Failed to auto-save event:", error);
-        }
-      });
-    }, 100);
-  }, [newEvent, notes, initialSession.id]);
+    setHasUnsavedChanges(true);
+    autoSave();
+  }, [newEvent, autoSave]);
 
-  // NPC tracking
   const [npcName, setNpcName] = useState("");
   const [npcNotes, setNpcNotes] = useState("");
 
@@ -165,22 +203,10 @@ export default function SessionTracker({
     }));
     setNpcName("");
     setNpcNotes("");
-    setTimeout(() => {
-      startTransition(async () => {
-        try {
-          await updateSessionNotes(initialSession.id, {
-            ...notes,
-            npcs: [...notes.npcs, { name: npcName, notes: npcNotes }],
-          });
-          lastSaveRef.current = new Date();
-        } catch (error) {
-          console.error("[v0] Failed to auto-save NPC:", error);
-        }
-      });
-    }, 100);
-  }, [npcName, npcNotes, notes, initialSession.id]);
+    setHasUnsavedChanges(true);
+    autoSave();
+  }, [npcName, npcNotes, autoSave]);
 
-  // Location tracking
   const [locationName, setLocationName] = useState("");
   const [locationNotes, setLocationNotes] = useState("");
 
@@ -195,57 +221,27 @@ export default function SessionTracker({
     }));
     setLocationName("");
     setLocationNotes("");
-    setTimeout(() => {
-      startTransition(async () => {
-        try {
-          await updateSessionNotes(initialSession.id, {
-            ...notes,
-            locations: [
-              ...notes.locations,
-              { name: locationName, notes: locationNotes },
-            ],
-          });
-          lastSaveRef.current = new Date();
-        } catch (error) {
-          console.error("[v0] Failed to auto-save location:", error);
-        }
-      });
-    }, 100);
-  }, [locationName, locationNotes, notes, initialSession.id]);
+    setHasUnsavedChanges(true);
+    autoSave();
+  }, [locationName, locationNotes, autoSave]);
 
-  // General notes - debounced auto-save
   const updateGeneralNotes = useCallback((value: string) => {
     setNotes((prev) => ({ ...prev, generalNotes: value }));
+    setHasUnsavedChanges(true);
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (
-        notes.generalNotes !==
-        (typeof initialSession.notes === "string"
-          ? JSON.parse(initialSession.notes).generalNotes
-          : (initialSession.notes as SessionNotes).generalNotes)
-      ) {
-        startTransition(async () => {
-          try {
-            await updateSessionNotes(initialSession.id, notes);
-            lastSaveRef.current = new Date();
-          } catch (error) {
-            console.error("[v0] Failed to auto-save general notes:", error);
-          }
-        });
-      }
-    }, 2000);
+    if (hasUnsavedChanges) {
+      autoSave();
+    }
+  }, [notes.generalNotes, hasUnsavedChanges, autoSave]);
 
-    return () => clearTimeout(timer);
-  }, [notes.generalNotes, initialSession.id, initialSession.notes, notes]);
-
-  // Save notes
   const handleSave = useCallback(() => {
     startTransition(async () => {
       try {
         await updateSessionNotes(initialSession.id, notes);
         lastSaveRef.current = new Date();
+        setHasUnsavedChanges(false);
         toast.success("Session notes saved!");
         router.refresh();
       } catch (error) {
@@ -255,7 +251,6 @@ export default function SessionTracker({
     });
   }, [initialSession.id, notes, router]);
 
-  // Complete session
   const handleComplete = useCallback(() => {
     startTransition(async () => {
       try {
@@ -271,7 +266,6 @@ export default function SessionTracker({
     });
   }, [initialSession.id, router]);
 
-  // Export functions
   const exportMarkdown = useCallback(() => {
     const markdown = generateMarkdown(initialSession, notes);
     const blob = new Blob([markdown], { type: "text/markdown" });
@@ -289,7 +283,6 @@ export default function SessionTracker({
   }, [initialSession, notes]);
 
   const exportPDF = useCallback(() => {
-    // Generate HTML for PDF printing
     const markdown = generateMarkdown(initialSession, notes);
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
@@ -333,7 +326,6 @@ export default function SessionTracker({
 
   return (
     <div className="space-y-6">
-      {/* Header Actions */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -348,6 +340,11 @@ export default function SessionTracker({
                   <Wifi className="h-3 w-3 mr-1" />
                   {isOnline ? "Live" : "Offline"}
                 </Badge>
+                {hasUnsavedChanges && (
+                  <Badge variant="secondary" className="ml-2">
+                    Unsaved changes
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription>
                 Track events, NPCs, locations, and notes in real-time
@@ -403,7 +400,6 @@ export default function SessionTracker({
         </CardHeader>
       </Card>
 
-      {/* Session Tracker Tabs */}
       <Tabs defaultValue="events" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="events">
@@ -424,7 +420,6 @@ export default function SessionTracker({
           </TabsTrigger>
         </TabsList>
 
-        {/* Events Tab */}
         <TabsContent value="events" className="space-y-4">
           <Card>
             <CardHeader>
@@ -472,7 +467,6 @@ export default function SessionTracker({
           </Card>
         </TabsContent>
 
-        {/* NPCs Tab */}
         <TabsContent value="npcs" className="space-y-4">
           <Card>
             <CardHeader>
@@ -532,7 +526,6 @@ export default function SessionTracker({
           </Card>
         </TabsContent>
 
-        {/* Locations Tab */}
         <TabsContent value="locations" className="space-y-4">
           <Card>
             <CardHeader>
@@ -596,7 +589,6 @@ export default function SessionTracker({
           </Card>
         </TabsContent>
 
-        {/* General Notes Tab */}
         <TabsContent value="notes" className="space-y-4">
           <Card>
             <CardHeader>
@@ -633,7 +625,6 @@ export default function SessionTracker({
   );
 }
 
-// Helper function to generate Markdown export
 function generateMarkdown(session: Session, notes: SessionNotes): string {
   const startDate = new Date(session.startDate);
   const endDate = session.endDate ? new Date(session.endDate) : null;
@@ -656,7 +647,6 @@ function generateMarkdown(session: Session, notes: SessionNotes): string {
 
   markdown += `---\n\n`;
 
-  // Events
   markdown += `## Events\n\n`;
   if (notes.events.length === 0) {
     markdown += `*No events logged*\n\n`;
@@ -667,7 +657,6 @@ function generateMarkdown(session: Session, notes: SessionNotes): string {
     markdown += `\n`;
   }
 
-  // NPCs
   markdown += `## NPCs Encountered\n\n`;
   if (notes.npcs.length === 0) {
     markdown += `*No NPCs tracked*\n\n`;
@@ -678,7 +667,6 @@ function generateMarkdown(session: Session, notes: SessionNotes): string {
     });
   }
 
-  // Locations
   markdown += `## Locations Visited\n\n`;
   if (notes.locations.length === 0) {
     markdown += `*No locations tracked*\n\n`;
@@ -689,7 +677,6 @@ function generateMarkdown(session: Session, notes: SessionNotes): string {
     });
   }
 
-  // General Notes
   if (notes.generalNotes) {
     markdown += `## Session Notes\n\n${notes.generalNotes}\n\n`;
   }

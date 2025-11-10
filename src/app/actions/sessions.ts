@@ -3,7 +3,7 @@
 import db from "@/db";
 import {
   rpgsessions,
-  SessionNotes,
+  type SessionNotes,
   sessionPresence,
 } from "@/db/schema/rpgSessions";
 
@@ -142,22 +142,25 @@ export async function fetchSessionData(sessionId: string) {
   };
 }
 
-export async function updatePresence(sessionId: string, userName: string) {
+export async function updatePresence(sessionId: string) {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Authentication required");
+
+  const userEmail = session.user.email || session.user.id;
 
   await db
     .insert(sessionPresence)
     .values({
       sessionId,
       userId: session.user.id,
-      userName,
+      userName: userEmail,
       lastSeen: new Date(),
     })
     .onConflictDoUpdate({
       target: [sessionPresence.sessionId, sessionPresence.userId],
       set: {
         lastSeen: new Date(),
+        userName: userEmail, // Also update userName on conflict
       },
     });
 }
