@@ -30,13 +30,16 @@ export default async function CampaignChapters({
       {/* Add Chapter Form */}
       <AddChapterForm campaignId={campaignId} />
 
-      <SessionList campaignId={campaignId}/> 
-      <CreateSessionForm campaignId={campaignId} />
-
       {/* Chapters List */}
       <Suspense fallback={<ChapterList.skeleton />}>
         <ChapterList campaignId={campaignId} />
       </Suspense>
+      <h1 className="text-2xl font-bold ">
+        {campaign.name} - Sessions [BETA TEST]
+      </h1>
+
+      <SessionList campaignId={campaignId} />
+      <CreateSessionForm campaignId={campaignId} />
     </div>
   );
 }
