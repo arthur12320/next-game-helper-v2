@@ -13,6 +13,7 @@ export { default as users } from "./users";
 export { adventureJournal } from "./adventure-journal";
 export { rpgsessions } from "./rpgSessions";
 export { sessionPresence } from "./rpgSessions";
+export { maps } from "./maps";
 
 // Then export the relations (if needed)
 export { campaignInviteRelations } from "./campaignInvites";
