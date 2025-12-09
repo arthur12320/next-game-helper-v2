@@ -5,7 +5,7 @@ import MapEditor from "@/components/mapEditor";
 export default async function MapEditorPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const maps = await fetchMaps();
   const param = await params;
