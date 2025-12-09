@@ -1,15 +1,9 @@
+import { CardFooter } from "@/components/ui/card";
 import { fetchMaps } from "@/app/actions/maps";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import EditMapButton from "./EditMapButton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import DeleteMapButton from "./DeleteMapButton";
-import CopyMapUrlButton from "./CopyMapUrlButton";
 import Image from "next/image";
+import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default async function MapList() {
@@ -28,50 +22,51 @@ export default async function MapList() {
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
       {maps.map((map) => (
-        <Card key={map.id} className="overflow-hidden">
-          <CardHeader>
-            <CardTitle className="line-clamp-1">{map.name}</CardTitle>
-            {map.description && (
-              <p className="text-sm text-muted-foreground line-clamp-2">
-                {map.description}
-              </p>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Map Preview */}
-            <div className="relative aspect-square w-full bg-muted rounded-lg overflow-hidden">
-              <Image
-                src={map.otfbmUrl || "/placeholder.svg"}
-                alt={map.name}
-                fill
-                className="object-contain"
-                unoptimized
-              />
-            </div>
-
-            {/* Map Info */}
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Size:</span>
-                <span className="font-medium">{map.size}</span>
-              </div>
-              {map.tokens && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tokens:</span>
-                  <span className="font-mono text-xs truncate ml-2">
-                    {map.tokens}
-                  </span>
-                </div>
+        <Card
+          key={map.id}
+          className="overflow-hidden group hover:shadow-lg transition-shadow"
+        >
+          <Link href={`/maps/${map.id}`} className="block">
+            <CardHeader>
+              <CardTitle className="line-clamp-1">{map.name}</CardTitle>
+              {map.description && (
+                <p className="text-sm text-muted-foreground line-clamp-2">
+                  {map.description}
+                </p>
               )}
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between gap-2">
-            <CopyMapUrlButton url={map.otfbmUrl} />
-            <div className="flex gap-2">
-              <EditMapButton map={map} />
-              <DeleteMapButton mapId={map.id} />
-            </div>
-          </CardFooter>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Map Preview */}
+              <div className="relative aspect-square w-full bg-muted rounded-lg overflow-hidden">
+                <Image
+                  src={map.otfbmUrl || "/placeholder.svg"}
+                  alt={map.name}
+                  fill
+                  className="object-contain group-hover:scale-105 transition-transform"
+                  unoptimized
+                />
+              </div>
+
+              {/* Map Info */}
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Size:</span>
+                  <span className="font-medium">{map.size}</span>
+                </div>
+                {map.tokens && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Tokens:</span>
+                    <span className="font-mono text-xs truncate ml-2">
+                      {map.tokens.split("/").length}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Link>
+          <div className="px-6 pb-4">
+            <DeleteMapButton mapId={map.id} />
+          </div>
         </Card>
       ))}
     </div>

@@ -83,7 +83,6 @@ export async function createMap(
 
 export async function fetchMaps() {
   const session = await auth();
-  console.log("hi");
 
   if (!session?.user?.id) {
     throw new Error("Authentication required");
