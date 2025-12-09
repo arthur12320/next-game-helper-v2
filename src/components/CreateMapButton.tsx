@@ -40,6 +40,8 @@ export default function CreateMapButton() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [size, setSize] = useState("10x10");
+  const [cellSize, setCellSize] = useState(40);
+  const [backgroundMode, setBackgroundMode] = useState("light");
   const [tokens, setTokens] = useState<Token[]>([]);
   const [backgroundUrl, setBackgroundUrl] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -76,6 +78,8 @@ export default function CreateMapButton() {
           description,
           size,
           generateTokenString(),
+          cellSize,
+          backgroundMode,
           backgroundUrl
         );
         setOpen(false);
@@ -83,6 +87,8 @@ export default function CreateMapButton() {
         setName("");
         setDescription("");
         setSize("10x10");
+        setCellSize(40);
+        setBackgroundMode("light");
         setTokens([]);
         setBackgroundUrl("");
         router.refresh();
@@ -134,19 +140,56 @@ export default function CreateMapButton() {
               />
             </div>
 
-            {/* Grid Size */}
-            <div className="space-y-2">
-              <Label htmlFor="size">Grid Size *</Label>
-              <Input
-                id="size"
-                value={size}
-                onChange={(e) => setSize(e.target.value)}
-                placeholder="10x10"
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                Format: WIDTHxHEIGHT (e.g., 10x10, 20x15)
-              </p>
+            {/* Grid Configuration */}
+            <div className="grid grid-cols-3 gap-4">
+              {/* Grid Size */}
+              <div className="space-y-2">
+                <Label htmlFor="size">Grid Size *</Label>
+                <Input
+                  id="size"
+                  value={size}
+                  onChange={(e) => setSize(e.target.value)}
+                  placeholder="10x10"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">WIDTHxHEIGHT</p>
+              </div>
+
+              {/* Cell Size */}
+              <div className="space-y-2">
+                <Label htmlFor="cellSize">Cell Size (px) *</Label>
+                <Input
+                  id="cellSize"
+                  type="number"
+                  min="20"
+                  max="200"
+                  value={cellSize}
+                  onChange={(e) =>
+                    setCellSize(Number.parseInt(e.target.value) || 40)
+                  }
+                  placeholder="40"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">20-200px</p>
+              </div>
+
+              {/* Background Mode */}
+              <div className="space-y-2">
+                <Label htmlFor="backgroundMode">Background *</Label>
+                <Select
+                  value={backgroundMode}
+                  onValueChange={setBackgroundMode}
+                >
+                  <SelectTrigger id="backgroundMode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">Light</SelectItem>
+                    <SelectItem value="dark">Dark</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Grid color</p>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -280,9 +323,12 @@ export default function CreateMapButton() {
               </p>
             </div>
 
+            {/* Map Preview */}
             <MapPreview
               size={size}
               tokens={generateTokenString()}
+              cellSize={cellSize}
+              backgroundMode={backgroundMode}
               backgroundUrl={backgroundUrl}
             />
           </div>

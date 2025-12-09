@@ -7,18 +7,30 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 interface MapPreviewProps {
   size: string;
   tokens: string;
+  cellSize?: number;
+  backgroundMode?: string;
   backgroundUrl?: string;
 }
 
 export default function MapPreview({
   size,
   tokens,
+  cellSize,
+  backgroundMode,
   backgroundUrl,
 }: MapPreviewProps) {
   const previewUrl = useMemo(() => {
     if (!size.trim()) return null;
 
     let url = `https://otfbm.io/${encodeURIComponent(size)}`;
+
+    if (cellSize && cellSize > 0) {
+      url += `/@c${cellSize}`;
+    }
+
+    if (backgroundMode === "dark") {
+      url += "/@d";
+    }
 
     if (tokens.trim()) {
       url += `/${encodeURIComponent(tokens)}`;
@@ -29,7 +41,7 @@ export default function MapPreview({
     }
 
     return url;
-  }, [size, tokens, backgroundUrl]);
+  }, [size, tokens, cellSize, backgroundMode, backgroundUrl]);
 
   if (!previewUrl) {
     return (
