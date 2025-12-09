@@ -33,6 +33,9 @@ interface Token {
   name: string;
   position: string;
   color: string;
+  size: string;
+  imageUrl?: string;
+  shortcode?: string;
 }
 
 export default function CreateMapButton() {
@@ -46,18 +49,64 @@ export default function CreateMapButton() {
   const [backgroundUrl, setBackgroundUrl] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const [isPreloadingToken, setIsPreloadingToken] = useState<string | null>(
+    null
+  );
+
+  const preloadTokenImage = async (tokenId: string, imageUrl: string) => {
+    if (!imageUrl) return;
+
+    setIsPreloadingToken(tokenId);
+    try {
+      const response = await fetch("/api/preload-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ imageUrl }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        updateToken(tokenId, "shortcode", data.shortcode);
+      } else {
+        console.error("[v0] Error preloading token:", await response.text());
+      }
+    } catch (error) {
+      console.error("[v0] Error preloading token image:", error);
+    } finally {
+      setIsPreloadingToken(null);
+    }
+  };
 
   const generateTokenString = () => {
     return tokens
       .filter((t) => t.name && t.position)
-      .map((t) => `${t.position}${t.color}-${t.name}`)
+      .map((t) => {
+        let tokenStr = `${t.position}${t.color === "default" ? "" : t.color}-${
+          t.name
+        }`;
+        if (t.shortcode) {
+          tokenStr += `~${t.shortcode}`;
+        }
+        if (t.size && t.size !== "medium") {
+          tokenStr += `-${t.size.charAt(0)}`;
+        }
+        return tokenStr;
+      })
       .join("/");
   };
 
   const addToken = () => {
     setTokens([
       ...tokens,
-      { id: crypto.randomUUID(), name: "", position: "", color: "default" },
+      {
+        id: crypto.randomUUID(),
+        name: "",
+        position: "",
+        color: "default",
+        size: "medium",
+      },
     ]);
   };
 
@@ -218,7 +267,7 @@ export default function CreateMapButton() {
                       key={token.id}
                       className="flex gap-2 items-start p-3 border rounded-md bg-muted/20"
                     >
-                      <div className="flex-1 grid grid-cols-3 gap-2">
+                      <div className="flex-1 grid grid-cols-2 gap-2">
                         <div className="space-y-1">
                           <Label
                             htmlFor={`token-name-${token.id}`}
@@ -287,6 +336,75 @@ export default function CreateMapButton() {
                               <SelectItem value="p">Purple</SelectItem>
                             </SelectContent>
                           </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label
+                            htmlFor={`token-size-${token.id}`}
+                            className="text-xs"
+                          >
+                            Size
+                          </Label>
+                          <Select
+                            value={token.size}
+                            onValueChange={(value) =>
+                              updateToken(token.id, "size", value)
+                            }
+                          >
+                            <SelectTrigger
+                              id={`token-size-${token.id}`}
+                              className="h-9"
+                            >
+                              <SelectValue placeholder="Medium" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="small">Small</SelectItem>
+                              <SelectItem value="medium">Medium</SelectItem>
+                              <SelectItem value="large">Large</SelectItem>
+                              <SelectItem value="huge">Huge</SelectItem>
+                              <SelectItem value="gargantuan">
+                                Gargantuan
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1 col-span-2">
+                          <Label
+                            htmlFor={`token-image-${token.id}`}
+                            className="text-xs"
+                          >
+                            Custom Image URL (optional)
+                          </Label>
+                          <Input
+                            id={`token-image-${token.id}`}
+                            value={token.imageUrl || ""}
+                            onChange={(e) =>
+                              updateToken(token.id, "imageUrl", e.target.value)
+                            }
+                            placeholder="https://example.com/token.png"
+                            className="h-9"
+                            type="url"
+                          />
+                          {token.imageUrl && !token.shortcode && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={() =>
+                                preloadTokenImage(token.id, token.imageUrl!)
+                              }
+                              disabled={isPreloadingToken === token.id}
+                              className="h-8 text-xs mt-1 w-full"
+                            >
+                              {isPreloadingToken === token.id
+                                ? "Loading..."
+                                : "Load Custom Image"}
+                            </Button>
+                          )}
+                          {token.shortcode && (
+                            <p className="text-xs text-green-600 mt-1">
+                              Custom image loaded ✓ (code: {token.shortcode})
+                            </p>
+                          )}
                         </div>
                       </div>
                       <Button
