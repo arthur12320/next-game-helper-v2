@@ -1,19 +1,19 @@
-# next-game-helper-v2
+# 🎮 next-game-helper-v2
 
-## Overview
+## 📝 Overview
 
 **next-game-helper-v2** é um projeto construído com Next.js + TypeScript que serve como “helper” para jogos de RPG — uma aplicação que facilita a organização, visualização e eventual gestão de recursos ou dados relacionados aos jogos que você utiliza. A ideia é fornecer uma interface moderna e funcional para quem curte RPGs e deseja manter controle de seus jogos, personagens, recursos ou histórico de partidas.  
 
-## Stack Overview
+## 🧰 Stack Overview
 
 O projeto usa as seguintes tecnologias:
 
-- **Next.js + TypeScript** — framework principal para front-end / SSR / SSG / React.  
-- **Tailwind CSS** — para estilização utilitária e responsiva.  
-- **Drizzle ORM** (via `drizzle.config.ts`) — configuração de ORM / banco de dados.  
-- Configurações de build e linting: `tsconfig.json`, `postcss.config.mjs`, `eslint.config.mjs`, entre outros.  
+- ⚛️ **Next.js + TypeScript** — framework principal para front-end / SSR / SSG / React.  
+- 🎨 **Tailwind CSS** — para estilização utilitária e responsiva.  
+- 🗂️ **Drizzle ORM** (via `drizzle.config.ts`) — configuração de ORM / banco de dados.  
+- 🧪 **ESLint / TS Config / PostCSS** — ferramentas de build e qualidade   
 
-## Setup Instructions
+## 🚀 Setup Instructions
 
 Para configurar e rodar o projeto localmente, siga os passos abaixo:
 
@@ -43,7 +43,9 @@ npm run dev
 # Abra http://localhost:3000
 ```
 
-## Features / TO-DO (autal & planejada)
+## ✨ Features / TO-DO (autal & planejada)
+
+✔️ Implementado
 
 - [x] Base da aplicação com Next.js + TypeScript + UI estilizada com Tailwind
 
