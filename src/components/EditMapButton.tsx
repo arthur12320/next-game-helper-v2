@@ -59,6 +59,10 @@ export default function EditMapButton({ map }: { map: Map }) {
   const [name, setName] = useState(map.name);
   const [description, setDescription] = useState(map.description || "");
   const [size, setSize] = useState(map.size);
+  const [cellSize, setCellSize] = useState(map.cellSize || 40);
+  const [backgroundMode, setBackgroundMode] = useState(
+    map.backgroundMode || "light"
+  );
   const [tokens, setTokens] = useState<Token[]>(parseTokenString(map.tokens));
   const [backgroundUrl, setBackgroundUrl] = useState(map.backgroundUrl || "");
   const [isPending, startTransition] = useTransition();
@@ -96,6 +100,8 @@ export default function EditMapButton({ map }: { map: Map }) {
           description,
           size,
           generateTokenString(),
+          cellSize,
+          backgroundMode,
           backgroundUrl
         );
         setOpen(false);
@@ -113,7 +119,7 @@ export default function EditMapButton({ map }: { map: Map }) {
           <Edit2 className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Edit Battle Map</DialogTitle>
@@ -143,17 +149,50 @@ export default function EditMapButton({ map }: { map: Map }) {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="edit-size">Grid Size *</Label>
-              <Input
-                id="edit-size"
-                value={size}
-                onChange={(e) => setSize(e.target.value)}
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                Format: WIDTHxHEIGHT (e.g., 10x10, 20x15)
-              </p>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-size">Grid Size *</Label>
+                <Input
+                  id="edit-size"
+                  value={size}
+                  onChange={(e) => setSize(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">WIDTHxHEIGHT</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-cellSize">Cell Size (px) *</Label>
+                <Input
+                  id="edit-cellSize"
+                  type="number"
+                  min="20"
+                  max="200"
+                  value={cellSize}
+                  onChange={(e) =>
+                    setCellSize(Number.parseInt(e.target.value) || 40)
+                  }
+                  required
+                />
+                <p className="text-xs text-muted-foreground">20-200px</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-backgroundMode">Background *</Label>
+                <Select
+                  value={backgroundMode}
+                  onValueChange={setBackgroundMode}
+                >
+                  <SelectTrigger id="edit-backgroundMode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">Light</SelectItem>
+                    <SelectItem value="dark">Dark</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Grid color</p>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -288,6 +327,8 @@ export default function EditMapButton({ map }: { map: Map }) {
             <MapPreview
               size={size}
               tokens={generateTokenString()}
+              cellSize={cellSize}
+              backgroundMode={backgroundMode}
               backgroundUrl={backgroundUrl}
             />
           </div>

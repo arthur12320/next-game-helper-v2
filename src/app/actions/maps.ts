@@ -10,9 +10,21 @@ import { auth } from "../../../auth";
 function generateOTFBMUrl(
   size: string,
   tokens: string,
+  cellSize?: number,
+  backgroundMode?: string,
   backgroundUrl?: string
 ): string {
   let url = `https://otfbm.io/${size}`;
+
+  // Add cell size if provided (format: @c70 for 70px cells)
+  if (cellSize && cellSize > 0) {
+    url += `/@c${cellSize}`;
+  }
+
+  // Add background mode if dark (format: @d for dark mode)
+  if (backgroundMode === "dark") {
+    url += "/@d";
+  }
 
   if (tokens.trim()) {
     url += `/${encodeURIComponent(tokens)}`;
@@ -30,6 +42,8 @@ export async function createMap(
   description: string,
   size: string,
   tokens: string,
+  cellSize: number,
+  backgroundMode: string,
   backgroundUrl?: string,
   campaignId?: string
 ) {
@@ -39,7 +53,13 @@ export async function createMap(
     throw new Error("Authentication required");
   }
 
-  const otfbmUrl = generateOTFBMUrl(size, tokens, backgroundUrl);
+  const otfbmUrl = generateOTFBMUrl(
+    size,
+    tokens,
+    cellSize,
+    backgroundMode,
+    backgroundUrl
+  );
 
   const [map] = await db
     .insert(maps)
@@ -47,6 +67,8 @@ export async function createMap(
       name,
       description,
       size,
+      cellSize,
+      backgroundMode,
       tokens,
       backgroundUrl,
       otfbmUrl,
@@ -59,28 +81,14 @@ export async function createMap(
   return { success: true, map };
 }
 
-export async function fetchMaps(campaignId?: string) {
+export async function fetchMaps() {
   const session = await auth();
 
   if (!session?.user?.id) {
     throw new Error("Authentication required");
   }
 
-  let query = db
-    .select()
-    .from(maps)
-    .where(eq(maps.userId, session.user.id))
-    .orderBy(desc(maps.createdAt));
-
-  if (campaignId) {
-    query = db
-      .select()
-      .from(maps)
-      .where(
-        and(eq(maps.userId, session.user.id), eq(maps.campaignId, campaignId))
-      )
-      .orderBy(desc(maps.createdAt));
-  }
+  const query = db.select().from(maps).orderBy(desc(maps.createdAt));
 
   return await query;
 }
@@ -91,6 +99,8 @@ export async function updateMap(
   description: string,
   size: string,
   tokens: string,
+  cellSize: number,
+  backgroundMode: string,
   backgroundUrl?: string
 ) {
   const session = await auth();
@@ -99,7 +109,13 @@ export async function updateMap(
     throw new Error("Authentication required");
   }
 
-  const otfbmUrl = generateOTFBMUrl(size, tokens, backgroundUrl);
+  const otfbmUrl = generateOTFBMUrl(
+    size,
+    tokens,
+    cellSize,
+    backgroundMode,
+    backgroundUrl
+  );
 
   const [updatedMap] = await db
     .update(maps)
@@ -107,6 +123,8 @@ export async function updateMap(
       name,
       description,
       size,
+      cellSize,
+      backgroundMode,
       tokens,
       backgroundUrl,
       otfbmUrl,
