@@ -2,7 +2,7 @@
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import type { SCCharacter } from "@/db/schema/sc-characters"
+import { SCCharacter } from "@/db/schema/sc-character"
 
 interface BackgroundStepProps {
   data: Partial<SCCharacter>

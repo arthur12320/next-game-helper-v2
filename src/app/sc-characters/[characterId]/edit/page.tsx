@@ -30,7 +30,7 @@ export default async function SCEditPage({ params }: EditPageProps) {
 
       <div className="mb-8">
         <h1 className="text-4xl font-bold tracking-tight">Edit Agent</h1>
-        <p className="text-muted-foreground mt-2">Update your agent's information</p>
+        <p className="text-muted-foreground mt-2">{`Update your agent's information`}</p>
       </div>
 
       <SCEditForm character={character} />

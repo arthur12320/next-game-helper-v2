@@ -21,7 +21,7 @@ export function BasicInfoStep({ data, onUpdate }: BasicInfoStepProps) {
           placeholder="Enter agent name"
           required
         />
-        <p className="text-sm text-muted-foreground">Your agent's operational codename or real name</p>
+        <p className="text-sm text-muted-foreground">{`Your agent's operational codename or real name`}</p>
       </div>
 
       <div className="space-y-2">
@@ -44,7 +44,7 @@ export function BasicInfoStep({ data, onUpdate }: BasicInfoStepProps) {
           rows={4}
           className="resize-none"
         />
-        <p className="text-sm text-muted-foreground">A brief description of your agent's role and personality</p>
+        <p className="text-sm text-muted-foreground">{`A brief description of your agent's role and personality`}</p>
       </div>
     </div>
   )

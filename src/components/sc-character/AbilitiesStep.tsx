@@ -64,7 +64,7 @@ export function AbilitiesStep({ data, onUpdate }: AbilitiesStepProps) {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Set your agent's core abilities. These represent fundamental capabilities.
+        {`Set your agent's core abilities. These represent fundamental capabilities.`}
       </p>
 
       {ABILITIES.map((ability) => (

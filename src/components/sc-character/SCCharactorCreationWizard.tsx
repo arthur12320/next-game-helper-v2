@@ -81,6 +81,7 @@ export function SCCharacterCreationWizard() {
         })
       }
     } catch (error) {
+      console.log(error)
       toast.error("Error",{
         description: "An unexpected error occurred",
       })  

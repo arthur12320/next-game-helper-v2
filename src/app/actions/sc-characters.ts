@@ -3,7 +3,7 @@
 import db from "@/db"
 import { scCharacters } from "@/db/schema"
 import { NewSCCharacter, SCCharacter } from "@/db/schema/sc-character"
-import { eq, and } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { auth } from "../../../auth"
 
