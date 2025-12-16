@@ -1,17 +1,28 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
-"use client"
+"use client";
 
-import type React from "react"
-import { useState, useCallback } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Plus, Minus, Coins, Dices, Settings, Package, Pencil, Trash2, Check, X } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import type React from "react";
+import { useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Plus,
+  Minus,
+  Coins,
+  Dices,
+  Settings,
+  Package,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+} from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   updateSCCondition,
   updateSCAbility,
@@ -21,203 +32,255 @@ import {
   addInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
-} from "@/app/actions/sc-characters"
-import { SCCharacter } from "@/db/schema/sc-character"
-import { toast } from "sonner"
+} from "@/app/actions/sc-characters";
+import { SCCharacter } from "@/db/schema/sc-character";
+import { toast } from "sonner";
+import { SkillRollModal } from "./SkillRollModal";
 
 interface SCPlayModeProps {
-  character: SCCharacter
+  character: SCCharacter;
 }
 
 export function SCPlayMode({ character }: SCPlayModeProps) {
+  const [localConditions, setLocalConditions] = useState(character.conditions);
+  const [localAbilities, setLocalAbilities] = useState(character.abilities);
+  const [selectedSkill, setSelectedSkill] = useState<{
+    name: string;
+    value: number;
+  } | null>(null);
 
-  const [localConditions, setLocalConditions] = useState(character.conditions)
-  const [localAbilities, setLocalAbilities] = useState(character.abilities)
-  const [interventionTokens, setInterventionTokens] = useState(character.interventionTokens)
-  const [heroTokens, setHeroTokens] = useState(character.heroTokens)
-  const [editMode, setEditMode] = useState(false)
+  const [interventionTokens, setInterventionTokens] = useState(
+    character.interventionTokens
+  );
+  const [rollModalOpen, setRollModalOpen] = useState(false);
 
-  const [, setSelectedSkill] = useState<{ name: string; level: number } | null>(null)
+  const [heroTokens, setHeroTokens] = useState(character.heroTokens);
+  const [editMode, setEditMode] = useState(false);
 
-  const [inventory, setInventory] = useState<string[]>(character.inventory || [])
-  const [newItemName, setNewItemName] = useState("")
-  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null)
-  const [editingItemName, setEditingItemName] = useState("")
+  const [inventory, setInventory] = useState<string[]>(
+    character.inventory || []
+  );
+  const [newItemName, setNewItemName] = useState("");
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
+  const [editingItemName, setEditingItemName] = useState("");
 
-  const handleAbilityChange = async (ability: keyof typeof localAbilities, delta: number) => {
-    const newValue = Math.max(0, localAbilities[ability] + delta)
-    setLocalAbilities({ ...localAbilities, [ability]: newValue })
+  const handleAbilityChange = async (
+    ability: keyof typeof localAbilities,
+    delta: number
+  ) => {
+    const newValue = Math.max(0, localAbilities[ability] + delta);
+    setLocalAbilities({ ...localAbilities, [ability]: newValue });
 
-    const result = await updateSCAbility(character.id, ability, newValue)
+    const result = await updateSCAbility(character.id, ability, newValue);
     if (!result.success) {
-      toast.error("Error",{
+      toast.error("Error", {
         description: "Failed to update ability",
-      })
+      });
     }
-  }
+  };
 
-  const handleConditionChange = async (condition: keyof typeof localConditions, checked: boolean) => {
-    setLocalConditions({ ...localConditions, [condition]: checked })
+  const handleConditionChange = async (
+    condition: keyof typeof localConditions,
+    checked: boolean
+  ) => {
+    setLocalConditions({ ...localConditions, [condition]: checked });
 
-    const result = await updateSCCondition(character.id, condition, checked)
+    const result = await updateSCCondition(character.id, condition, checked);
     if (!result.success) {
-      toast.error("Error",{
+      toast.error("Error", {
         description: "Failed to update condition",
-      })
+      });
     }
-  }
+  };
 
-  const handleTokenChange = async (type: "interventionTokens" | "heroTokens", delta: number) => {
-    const currentValue = type === "interventionTokens" ? interventionTokens : heroTokens
-    const newValue = Math.max(0, currentValue + delta)
+  const handleTokenChange = async (
+    type: "interventionTokens" | "heroTokens",
+    delta: number
+  ) => {
+    const currentValue =
+      type === "interventionTokens" ? interventionTokens : heroTokens;
+    const newValue = Math.max(0, currentValue + delta);
 
     if (type === "interventionTokens") {
-      setInterventionTokens(newValue)
+      setInterventionTokens(newValue);
     } else {
-      setHeroTokens(newValue)
+      setHeroTokens(newValue);
     }
 
-    const result = await updateSCTokens(character.id, type, newValue)
+    const result = await updateSCTokens(character.id, type, newValue);
     if (!result.success) {
-      toast.error("Error",{
+      toast.error("Error", {
         description: "Failed to update tokens",
-      })
+      });
     }
-  }
+  };
 
   const handleSkillClick = (skillName: string, skillValue: number) => {
     if (!editMode) {
-      setSelectedSkill({ name: skillName, level: skillValue })
+      setSelectedSkill({ name: skillName, value: skillValue });
       // Assuming SkillRollModal is defined elsewhere to handle skill rolls
-      // setRollModalOpen(true)
+      setRollModalOpen(true);
     }
-  }
+  };
 
   const handleTestCountChange = useCallback(
-    async (skill: string, type: "successes" | "failures", delta: number, e: React.MouseEvent) => {
-      e.stopPropagation()
+    async (
+      skill: string,
+      type: "successes" | "failures",
+      delta: number,
+      e: React.MouseEvent
+    ) => {
+      e.stopPropagation();
 
-      const tests = character.skillTests?.[skill] || { successes: 0, failures: 0 }
-      const newSuccesses = type === "successes" ? Math.max(0, tests.successes + delta) : tests.successes
-      const newFailures = type === "failures" ? Math.max(0, tests.failures + delta) : tests.failures
+      const tests = character.skillTests?.[skill] || {
+        successes: 0,
+        failures: 0,
+      };
+      const newSuccesses =
+        type === "successes"
+          ? Math.max(0, tests.successes + delta)
+          : tests.successes;
+      const newFailures =
+        type === "failures"
+          ? Math.max(0, tests.failures + delta)
+          : tests.failures;
 
-      const result = await updateSkillTest(character.id, skill, newSuccesses, newFailures)
+      const result = await updateSkillTest(
+        character.id,
+        skill,
+        newSuccesses,
+        newFailures
+      );
       if (result.success) {
-        toast("Test Count Updated",{
+        toast("Test Count Updated", {
           description: `${type} count for ${skill} updated successfully`,
-        })
+        });
       } else {
-        toast.error("Error",{
+        toast.error("Error", {
           description: result.error || "Failed to update skill tests",
-        })
+        });
       }
     },
-    [character.id, character.skillTests, toast],
-  )
+    [character.id, character.skillTests, toast]
+  );
 
   const handleSkillLevelChange = useCallback(
     async (skill: string, delta: number, e: React.MouseEvent) => {
-      e.stopPropagation()
+      e.stopPropagation();
 
-      const currentLevel = character.skills[skill] || 0
-      const newLevel = Math.max(0, currentLevel + delta)
+      const currentLevel = character.skills[skill] || 0;
+      const newLevel = Math.max(0, currentLevel + delta);
 
-      const result = await updateSCSkillLevel(character.id, skill, newLevel)
+      const result = await updateSCSkillLevel(character.id, skill, newLevel);
       if (result.success) {
-        toast("Skill Updated",{
+        toast("Skill Updated", {
           description: `${skill} level changed to ${newLevel}. Tests reset.`,
-        })
+        });
       } else {
-        toast.error("Error",{
+        toast.error("Error", {
           description: result.error || "Failed to update skill",
-        })
+        });
       }
     },
-    [character.id, character.skills, toast],
-  )
+    [character.id, character.skills, toast]
+  );
 
   const handleAddItem = useCallback(async () => {
-    if (!newItemName.trim()) return
+    if (!newItemName.trim()) return;
 
-    const result = await addInventoryItem(character.id, newItemName.trim())
+    const result = await addInventoryItem(character.id, newItemName.trim());
     if (result.success) {
-      setInventory([...inventory, newItemName.trim()])
-      setNewItemName("")
-      toast("Item Added",{
+      setInventory([...inventory, newItemName.trim()]);
+      setNewItemName("");
+      toast("Item Added", {
         description: `${newItemName} added to inventory`,
-      })
+      });
     } else {
-      toast.error("Error",{
+      toast.error("Error", {
         description: result.error || "Failed to add item",
-      })
+      });
     }
-  }, [character.id, newItemName, inventory, toast])
+  }, [character.id, newItemName, inventory, toast]);
 
   const handleEditItem = useCallback((index: number, currentName: string) => {
-    setEditingItemIndex(index)
-    setEditingItemName(currentName)
-  }, [])
+    setEditingItemIndex(index);
+    setEditingItemName(currentName);
+  }, []);
 
   const handleSaveEdit = useCallback(
     async (index: number) => {
-      if (!editingItemName.trim()) return
+      if (!editingItemName.trim()) return;
 
-      const result = await updateInventoryItem(character.id, index, editingItemName.trim())
+      const result = await updateInventoryItem(
+        character.id,
+        index,
+        editingItemName.trim()
+      );
       if (result.success) {
-        const updatedInventory = [...inventory]
-        updatedInventory[index] = editingItemName.trim()
-        setInventory(updatedInventory)
-        setEditingItemIndex(null)
-        setEditingItemName("")
-        toast("Item Updated",{
+        const updatedInventory = [...inventory];
+        updatedInventory[index] = editingItemName.trim();
+        setInventory(updatedInventory);
+        setEditingItemIndex(null);
+        setEditingItemName("");
+        toast("Item Updated", {
           description: "Item name updated successfully",
-        })
+        });
       } else {
-        toast.error("Error",{
+        toast.error("Error", {
           description: result.error || "Failed to update item",
-        })
+        });
       }
     },
-    [character.id, editingItemName, inventory, toast],
-  )
+    [character.id, editingItemName, inventory, toast]
+  );
 
   const handleCancelEdit = useCallback(() => {
-    setEditingItemIndex(null)
-    setEditingItemName("")
-  }, [])
+    setEditingItemIndex(null);
+    setEditingItemName("");
+  }, []);
 
   const handleDeleteItem = useCallback(
     async (index: number) => {
-      const result = await deleteInventoryItem(character.id, index)
+      const result = await deleteInventoryItem(character.id, index);
       if (result.success) {
-        setInventory(inventory.filter((_, i) => i !== index))
-        toast("Item Removed",{ 
+        setInventory(inventory.filter((_, i) => i !== index));
+        toast("Item Removed", {
           description: "Item removed from inventory",
-        })
+        });
       } else {
-        toast.error("Error",{
+        toast.error("Error", {
           description: result.error || "Failed to remove item",
-        })
+        });
       }
     },
-    [character.id, inventory, toast],
-  )
+    [character.id, inventory, toast]
+  );
 
   const topSkills = Object.entries(character.skills)
     .filter(([_, value]) => value > 0)
-    .sort(([_, a], [__, b]) => b - a)
+    .sort(([_, a], [__, b]) => b - a);
 
-  const allSkills = Object.entries(character.skills).sort(([a], [b]) => a.localeCompare(b))
+  const allSkills = Object.entries(character.skills).sort(([a], [b]) =>
+    a.localeCompare(b)
+  );
 
-  const activeConditions = Object.entries(localConditions).filter(([_, active]) => active)
+  const activeConditions = Object.entries(localConditions).filter(
+    ([_, active]) => active
+  );
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight">{character.name}</h1>
-          {character.pronouns && <p className="text-muted-foreground mt-1">{character.pronouns}</p>}
-          {character.concept && <p className="text-sm mt-2 max-w-2xl">{character.concept}</p>}
+          <h1 className="text-4xl font-bold tracking-tight">
+            {character.name}
+          </h1>
+          {character.pronouns && (
+            <p className="text-muted-foreground mt-1">{character.pronouns}</p>
+          )}
+          {character.concept && (
+            <p className="text-sm mt-2 max-w-2xl">{character.concept}</p>
+          )}
         </div>
         <Badge variant="secondary" className="text-lg px-4 py-2">
           Agent
@@ -227,7 +290,9 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
       {activeConditions.length > 0 && (
         <Card className="border-destructive">
           <CardHeader>
-            <CardTitle className="text-destructive">Active Conditions</CardTitle>
+            <CardTitle className="text-destructive">
+              Active Conditions
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
@@ -248,21 +313,36 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             {Object.entries(localAbilities).map(([ability, value]) => (
-              <div key={ability} className="flex items-center justify-between p-3 bg-secondary/50 rounded">
+              <div
+                key={ability}
+                className="flex items-center justify-between p-3 bg-secondary/50 rounded"
+              >
                 <span className="font-semibold">{ability}</span>
                 <div className="flex items-center gap-2">
                   <Button
                     size="icon"
                     variant="outline"
-                    onClick={() => handleAbilityChange(ability as keyof typeof localAbilities, -1)}
+                    onClick={() =>
+                      handleAbilityChange(
+                        ability as keyof typeof localAbilities,
+                        -1
+                      )
+                    }
                   >
                     <Minus className="h-4 w-4" />
                   </Button>
-                  <span className="text-xl font-bold w-12 text-center">{value}</span>
+                  <span className="text-xl font-bold w-12 text-center">
+                    {value}
+                  </span>
                   <Button
                     size="icon"
                     variant="outline"
-                    onClick={() => handleAbilityChange(ability as keyof typeof localAbilities, 1)}
+                    onClick={() =>
+                      handleAbilityChange(
+                        ability as keyof typeof localAbilities,
+                        1
+                      )
+                    }
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -283,11 +363,21 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
             <div className="flex items-center justify-between p-3 bg-blue-500/10 rounded">
               <span className="font-semibold">Intervention Tokens</span>
               <div className="flex items-center gap-2">
-                <Button size="icon" variant="outline" onClick={() => handleTokenChange("interventionTokens", -1)}>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => handleTokenChange("interventionTokens", -1)}
+                >
                   <Minus className="h-4 w-4" />
                 </Button>
-                <span className="text-xl font-bold w-12 text-center">{interventionTokens}</span>
-                <Button size="icon" variant="outline" onClick={() => handleTokenChange("interventionTokens", 1)}>
+                <span className="text-xl font-bold w-12 text-center">
+                  {interventionTokens}
+                </span>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => handleTokenChange("interventionTokens", 1)}
+                >
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
@@ -296,11 +386,21 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
             <div className="flex items-center justify-between p-3 bg-yellow-500/10 rounded">
               <span className="font-semibold">Hero Tokens</span>
               <div className="flex items-center gap-2">
-                <Button size="icon" variant="outline" onClick={() => handleTokenChange("heroTokens", -1)}>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => handleTokenChange("heroTokens", -1)}
+                >
                   <Minus className="h-4 w-4" />
                 </Button>
-                <span className="text-xl font-bold w-12 text-center">{heroTokens}</span>
-                <Button size="icon" variant="outline" onClick={() => handleTokenChange("heroTokens", 1)}>
+                <span className="text-xl font-bold w-12 text-center">
+                  {heroTokens}
+                </span>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => handleTokenChange("heroTokens", 1)}
+                >
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
@@ -325,15 +425,24 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
             <CardContent>
               <div className="grid gap-3 sm:grid-cols-2">
                 {Object.entries(localConditions).map(([condition, active]) => (
-                  <div key={condition} className="flex items-center space-x-2 p-3 rounded border">
+                  <div
+                    key={condition}
+                    className="flex items-center space-x-2 p-3 rounded border"
+                  >
                     <Checkbox
                       id={condition}
                       checked={active}
                       onCheckedChange={(checked) =>
-                        handleConditionChange(condition as keyof typeof localConditions, checked as boolean)
+                        handleConditionChange(
+                          condition as keyof typeof localConditions,
+                          checked as boolean
+                        )
                       }
                     />
-                    <Label htmlFor={condition} className="flex-1 cursor-pointer">
+                    <Label
+                      htmlFor={condition}
+                      className="flex-1 cursor-pointer"
+                    >
                       {condition}
                     </Label>
                   </div>
@@ -366,10 +475,12 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
               <div className="space-y-6">
                 {topSkills.length > 0 && (
                   <div>
-                    <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Trained Skills</h4>
+                    <h4 className="text-sm font-semibold mb-3 text-muted-foreground">
+                      Trained Skills
+                    </h4>
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                       {topSkills.map(([skill, value]) => {
-                        const tests = character.skillTests?.[skill]
+                        const tests = character.skillTests?.[skill];
                         return (
                           <div
                             key={skill}
@@ -378,26 +489,38 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
                           >
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm font-medium truncate">{skill}</span>
+                                <span className="text-sm font-medium truncate">
+                                  {skill}
+                                </span>
                                 {editMode ? (
-                                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                  <div
+                                    className="flex items-center gap-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
                                     <Button
                                       size="icon"
                                       variant="ghost"
                                       className="h-5 w-5"
-                                      onClick={(e) => handleSkillLevelChange(skill, -1, e)}
+                                      onClick={(e) =>
+                                        handleSkillLevelChange(skill, -1, e)
+                                      }
                                       title="Decrease skill level (resets tests)"
                                     >
                                       <Minus className="h-3 w-3" />
                                     </Button>
-                                    <Badge variant="default" className="text-xs">
+                                    <Badge
+                                      variant="default"
+                                      className="text-xs"
+                                    >
                                       {value}
                                     </Badge>
                                     <Button
                                       size="icon"
                                       variant="ghost"
                                       className="h-5 w-5"
-                                      onClick={(e) => handleSkillLevelChange(skill, 1, e)}
+                                      onClick={(e) =>
+                                        handleSkillLevelChange(skill, 1, e)
+                                      }
                                       title="Increase skill level (resets tests)"
                                     >
                                       <Plus className="h-3 w-3" />
@@ -409,80 +532,123 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
                                   </Badge>
                                 )}
                               </div>
-                              {tests && (tests.successes > 0 || tests.failures > 0) && (
-                                <div className="flex gap-2">
-                                  {editMode ? (
-                                    <>
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          className="h-4 w-4 p-0"
-                                          onClick={(e) => handleTestCountChange(skill, "successes", -1, e)}
+                              {tests &&
+                                (tests.successes > 0 || tests.failures > 0) && (
+                                  <div className="flex gap-2">
+                                    {editMode ? (
+                                      <>
+                                        <div className="flex items-center gap-1">
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-4 w-4 p-0"
+                                            onClick={(e) =>
+                                              handleTestCountChange(
+                                                skill,
+                                                "successes",
+                                                -1,
+                                                e
+                                              )
+                                            }
+                                          >
+                                            <Minus className="h-3 w-3 text-green-700" />
+                                          </Button>
+                                          <Badge
+                                            variant="outline"
+                                            className="text-xs bg-green-500/10 text-green-700"
+                                          >
+                                            {tests.successes}S
+                                          </Badge>
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-4 w-4 p-0"
+                                            onClick={(e) =>
+                                              handleTestCountChange(
+                                                skill,
+                                                "successes",
+                                                1,
+                                                e
+                                              )
+                                            }
+                                          >
+                                            <Plus className="h-3 w-3 text-green-700" />
+                                          </Button>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-4 w-4 p-0"
+                                            onClick={(e) =>
+                                              handleTestCountChange(
+                                                skill,
+                                                "failures",
+                                                -1,
+                                                e
+                                              )
+                                            }
+                                          >
+                                            <Minus className="h-3 w-3 text-red-700" />
+                                          </Button>
+                                          <Badge
+                                            variant="outline"
+                                            className="text-xs bg-red-500/10 text-red-700"
+                                          >
+                                            {tests.failures}F
+                                          </Badge>
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-4 w-4 p-0"
+                                            onClick={(e) =>
+                                              handleTestCountChange(
+                                                skill,
+                                                "failures",
+                                                1,
+                                                e
+                                              )
+                                            }
+                                          >
+                                            <Plus className="h-3 w-3 text-red-700" />
+                                          </Button>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs bg-green-500/10 text-green-700"
                                         >
-                                          <Minus className="h-3 w-3 text-green-700" />
-                                        </Button>
-                                        <Badge variant="outline" className="text-xs bg-green-500/10 text-green-700">
                                           {tests.successes}S
                                         </Badge>
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          className="h-4 w-4 p-0"
-                                          onClick={(e) => handleTestCountChange(skill, "successes", 1, e)}
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs bg-red-500/10 text-red-700"
                                         >
-                                          <Plus className="h-3 w-3 text-green-700" />
-                                        </Button>
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          className="h-4 w-4 p-0"
-                                          onClick={(e) => handleTestCountChange(skill, "failures", -1, e)}
-                                        >
-                                          <Minus className="h-3 w-3 text-red-700" />
-                                        </Button>
-                                        <Badge variant="outline" className="text-xs bg-red-500/10 text-red-700">
                                           {tests.failures}F
                                         </Badge>
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          className="h-4 w-4 p-0"
-                                          onClick={(e) => handleTestCountChange(skill, "failures", 1, e)}
-                                        >
-                                          <Plus className="h-3 w-3 text-red-700" />
-                                        </Button>
-                                      </div>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Badge variant="outline" className="text-xs bg-green-500/10 text-green-700">
-                                        {tests.successes}S
-                                      </Badge>
-                                      <Badge variant="outline" className="text-xs bg-red-500/10 text-red-700">
-                                        {tests.failures}F
-                                      </Badge>
-                                    </>
-                                  )}
-                                </div>
-                              )}
+                                      </>
+                                    )}
+                                  </div>
+                                )}
                             </div>
                           </div>
-                        )
+                        );
                       })}
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <h4 className="text-sm font-semibold mb-3 text-muted-foreground">All Skills (Untrained)</h4>
+                  <h4 className="text-sm font-semibold mb-3 text-muted-foreground">
+                    All Skills (Untrained)
+                  </h4>
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {allSkills
                       .filter(([_, value]) => value === 0)
                       .map(([skill, value]) => {
-                        const tests = character.skillTests?.[skill]
+                        const tests = character.skillTests?.[skill];
                         return (
                           <div
                             key={skill}
@@ -491,99 +657,155 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
                           >
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm text-muted-foreground truncate">{skill}</span>
+                                <span className="text-sm text-muted-foreground truncate">
+                                  {skill}
+                                </span>
                                 {editMode ? (
-                                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                  <div
+                                    className="flex items-center gap-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
                                     <Button
                                       size="icon"
                                       variant="ghost"
                                       className="h-5 w-5"
-                                      onClick={(e) => handleSkillLevelChange(skill, -1, e)}
+                                      onClick={(e) =>
+                                        handleSkillLevelChange(skill, -1, e)
+                                      }
                                       title="Decrease skill level (resets tests)"
                                     >
                                       <Minus className="h-3 w-3" />
                                     </Button>
-                                    <Badge variant="secondary" className="text-xs">
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-xs"
+                                    >
                                       {value}
                                     </Badge>
                                     <Button
                                       size="icon"
                                       variant="ghost"
                                       className="h-5 w-5"
-                                      onClick={(e) => handleSkillLevelChange(skill, 1, e)}
+                                      onClick={(e) =>
+                                        handleSkillLevelChange(skill, 1, e)
+                                      }
                                       title="Increase skill level (resets tests)"
                                     >
                                       <Plus className="h-3 w-3" />
                                     </Button>
                                   </div>
                                 ) : (
-                                  <Badge variant="secondary" className="text-xs">
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-xs"
+                                  >
                                     {value}
                                   </Badge>
                                 )}
                               </div>
-                              {tests && (tests.successes > 0 || tests.failures > 0) && (
-                                <div className="flex gap-2">
-                                  {editMode ? (
-                                    <>
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          className="h-4 w-4 p-0"
-                                          onClick={(e) => handleTestCountChange(skill, "successes", -1, e)}
+                              {tests &&
+                                (tests.successes > 0 || tests.failures > 0) && (
+                                  <div className="flex gap-2">
+                                    {editMode ? (
+                                      <>
+                                        <div className="flex items-center gap-1">
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-4 w-4 p-0"
+                                            onClick={(e) =>
+                                              handleTestCountChange(
+                                                skill,
+                                                "successes",
+                                                -1,
+                                                e
+                                              )
+                                            }
+                                          >
+                                            <Minus className="h-3 w-3 text-green-700" />
+                                          </Button>
+                                          <Badge
+                                            variant="outline"
+                                            className="text-xs bg-green-500/10 text-green-700"
+                                          >
+                                            {tests.successes}S
+                                          </Badge>
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-4 w-4 p-0"
+                                            onClick={(e) =>
+                                              handleTestCountChange(
+                                                skill,
+                                                "successes",
+                                                1,
+                                                e
+                                              )
+                                            }
+                                          >
+                                            <Plus className="h-3 w-3 text-green-700" />
+                                          </Button>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-4 w-4 p-0"
+                                            onClick={(e) =>
+                                              handleTestCountChange(
+                                                skill,
+                                                "failures",
+                                                -1,
+                                                e
+                                              )
+                                            }
+                                          >
+                                            <Minus className="h-3 w-3 text-red-700" />
+                                          </Button>
+                                          <Badge
+                                            variant="outline"
+                                            className="text-xs bg-red-500/10 text-red-700"
+                                          >
+                                            {tests.failures}F
+                                          </Badge>
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-4 w-4 p-0"
+                                            onClick={(e) =>
+                                              handleTestCountChange(
+                                                skill,
+                                                "failures",
+                                                1,
+                                                e
+                                              )
+                                            }
+                                          >
+                                            <Plus className="h-3 w-3 text-red-700" />
+                                          </Button>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs bg-green-500/10 text-green-700"
                                         >
-                                          <Minus className="h-3 w-3 text-green-700" />
-                                        </Button>
-                                        <Badge variant="outline" className="text-xs bg-green-500/10 text-green-700">
                                           {tests.successes}S
                                         </Badge>
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          className="h-4 w-4 p-0"
-                                          onClick={(e) => handleTestCountChange(skill, "successes", 1, e)}
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs bg-red-500/10 text-red-700"
                                         >
-                                          <Plus className="h-3 w-3 text-green-700" />
-                                        </Button>
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          className="h-4 w-4 p-0"
-                                          onClick={(e) => handleTestCountChange(skill, "failures", -1, e)}
-                                        >
-                                          <Minus className="h-3 w-3 text-red-700" />
-                                        </Button>
-                                        <Badge variant="outline" className="text-xs bg-red-500/10 text-red-700">
                                           {tests.failures}F
                                         </Badge>
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          className="h-4 w-4 p-0"
-                                          onClick={(e) => handleTestCountChange(skill, "failures", 1, e)}
-                                        >
-                                          <Plus className="h-3 w-3 text-red-700" />
-                                        </Button>
-                                      </div>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Badge variant="outline" className="text-xs bg-green-500/10 text-green-700">
-                                        {tests.successes}S
-                                      </Badge>
-                                      <Badge variant="outline" className="text-xs bg-red-500/10 text-red-700">
-                                        {tests.failures}F
-                                      </Badge>
-                                    </>
-                                  )}
-                                </div>
-                              )}
+                                      </>
+                                    )}
+                                  </div>
+                                )}
                             </div>
                           </div>
-                        )
+                        );
                       })}
                   </div>
                 </div>
@@ -609,17 +831,23 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
                     onChange={(e) => setNewItemName(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
-                        handleAddItem()
+                        handleAddItem();
                       }
                     }}
                   />
-                  <Button onClick={handleAddItem} size="icon" disabled={!newItemName.trim()}>
+                  <Button
+                    onClick={handleAddItem}
+                    size="icon"
+                    disabled={!newItemName.trim()}
+                  >
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
 
                 {inventory.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">No items in inventory</p>
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No items in inventory
+                  </p>
                 ) : (
                   <div className="space-y-2">
                     {inventory.map((item, index) => (
@@ -631,21 +859,31 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
                           <>
                             <Input
                               value={editingItemName}
-                              onChange={(e) => setEditingItemName(e.target.value)}
+                              onChange={(e) =>
+                                setEditingItemName(e.target.value)
+                              }
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") {
-                                  handleSaveEdit(index)
+                                  handleSaveEdit(index);
                                 } else if (e.key === "Escape") {
-                                  handleCancelEdit()
+                                  handleCancelEdit();
                                 }
                               }}
                               className="flex-1"
                               autoFocus
                             />
-                            <Button size="icon" variant="ghost" onClick={() => handleSaveEdit(index)}>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleSaveEdit(index)}
+                            >
                               <Check className="h-4 w-4 text-green-600" />
                             </Button>
-                            <Button size="icon" variant="ghost" onClick={handleCancelEdit}>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={handleCancelEdit}
+                            >
                               <X className="h-4 w-4 text-red-600" />
                             </Button>
                           </>
@@ -688,37 +926,60 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
               {character.homeworld && (
                 <div>
                   <h4 className="font-semibold mb-1">Homeworld</h4>
-                  <p className="text-sm text-muted-foreground">{character.homeworld}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {character.homeworld}
+                  </p>
                 </div>
               )}
               {character.upbringing && (
                 <div>
                   <h4 className="font-semibold mb-1">Upbringing</h4>
-                  <p className="text-sm text-muted-foreground">{character.upbringing}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {character.upbringing}
+                  </p>
                 </div>
               )}
               {character.beliefs && (
                 <div>
                   <h4 className="font-semibold mb-1">Beliefs</h4>
-                  <p className="text-sm text-muted-foreground">{character.beliefs}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {character.beliefs}
+                  </p>
                 </div>
               )}
               {character.instincts && (
                 <div>
                   <h4 className="font-semibold mb-1">Instincts</h4>
-                  <p className="text-sm text-muted-foreground">{character.instincts}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {character.instincts}
+                  </p>
                 </div>
               )}
               {character.goals && (
                 <div>
                   <h4 className="font-semibold mb-1">Goals</h4>
-                  <p className="text-sm text-muted-foreground">{character.goals}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {character.goals}
+                  </p>
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+      {selectedSkill && (
+        <SkillRollModal
+          isOpen={rollModalOpen}
+          onClose={() => {
+            setRollModalOpen(false);
+            setSelectedSkill(null);
+          }}
+          skillName={selectedSkill.name}
+          skillValue={selectedSkill.value}
+          characterId={character.id}
+          skillTests={character.skillTests?.[selectedSkill.name]}
+        />
+      )}
     </div>
-  )
+  );
 }
