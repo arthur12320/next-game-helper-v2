@@ -1,20 +1,32 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { CheckCircle2, XCircle, Dices } from "lucide-react"
-import { recordSkillTest, recordAbilityTest } from "@/app/actions/sc-characters"
-import { toast } from "sonner"
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { CheckCircle2, XCircle, Dices, TrendingUp } from "lucide-react";
+import {
+  recordSkillTest,
+  recordAbilityTest,
+} from "@/app/actions/sc-characters";
+import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
 
 interface SkillRollModalProps {
-  isOpen: boolean
-  onClose: () => void
-  skillName: string
-  skillValue: number
-  characterId: string
-  skillTests?: { successes: number; failures: number }
-  type?: "skill" | "ability"
+  isOpen: boolean;
+  onClose: () => void;
+  skillName: string;
+  skillValue: number;
+  characterId: string;
+  skillTests?: { successes: number; failures: number };
+  type?: "skill" | "ability";
+  abilityValue?: number;
+  onAbilityLevelUp?: (abilityName: string, newLevel: number) => void;
 }
 
 export function SkillRollModal({
@@ -25,40 +37,83 @@ export function SkillRollModal({
   characterId,
   skillTests,
   type = "skill",
+  abilityValue = 3,
+  onAbilityLevelUp,
 }: SkillRollModalProps) {
-  const [recording, setRecording] = useState(false)
-  const [result, setResult] = useState<"success" | "fail" | null>(null)
-  const [localTests, setLocalTests] = useState(skillTests || { successes: 0, failures: 0 })
+  // State management
+  const [recording, setRecording] = useState(false);
+  const [result, setResult] = useState<"success" | "fail" | null>(null);
+  const [localTests, setLocalTests] = useState(
+    skillTests || { successes: 0, failures: 0 }
+  );
+  const [leveledUp, setLeveledUp] = useState(false);
 
+  // Handle recording test result (success or fail)
   const handleRecordResult = async (isSuccess: boolean) => {
-    setRecording(true)
-    setResult(isSuccess ? "success" : "fail")
+    setRecording(true);
+    setResult(isSuccess ? "success" : "fail");
 
+    // Call appropriate server action based on type
     const recordResult =
       type === "ability"
         ? await recordAbilityTest(characterId, skillName, isSuccess)
-        : await recordSkillTest(characterId, skillName, isSuccess)
+        : await recordSkillTest(characterId, skillName, isSuccess);
 
     if (recordResult.success) {
-      if(type === "ability" && "abilityTest" in recordResult) {
-      setLocalTests(recordResult.abilityTest as {successes: number; failures: number})
-      } else if("skillTest" in recordResult) {
-      setLocalTests(recordResult.skillTest as {successes: number; failures: number})
+      // Update local test counts
+      if (type === "ability" && "abilityTest" in recordResult) {
+        setLocalTests(
+          recordResult.abilityTest as { successes: number; failures: number }
+        );
+        setLeveledUp(!!recordResult.leveledUp);
+        if (recordResult.leveledUp && onAbilityLevelUp) {
+          onAbilityLevelUp(skillName, skillValue + 1);
+        }
+      } else if ("skillTest" in recordResult) {
+        setLocalTests(
+          recordResult.skillTest as { successes: number; failures: number }
+        );
+        setLeveledUp(!!recordResult.leveledUp);
       }
     } else {
       toast.error("Warning", {
         description: "Couldn't save roll result",
-      })
+      });
     }
 
-    setRecording(false)
-  }
+    setRecording(false);
+  };
 
+  // Reset state and close modal
   const handleClose = () => {
-    setResult(null)
-    setRecording(false)
-    onClose()
-  }
+    setResult(null);
+    setRecording(false);
+    setLeveledUp(false);
+    onClose();
+  };
+
+  // For level 0 (learning): need (6 - ability level) tests
+  // For level > 0 (advancing): need level successes and floor(level/2) failures
+  const isLearning = skillValue === 0;
+  const requiredLearningTests = isLearning ? 6 - abilityValue : 0;
+  const learningProgress = localTests.successes + localTests.failures;
+  const learningTestProgress = isLearning
+    ? Math.min((learningProgress / requiredLearningTests) * 100, 100)
+    : 0;
+
+  const requiredSuccesses = skillValue;
+  const requiredFailures = Math.floor(skillValue / 2);
+  const successProgress = Math.min(
+    (localTests.successes / requiredSuccesses) * 100,
+    100
+  );
+  const failureProgress = Math.min(
+    (localTests.failures / requiredFailures) * 100,
+    100
+  );
+  const canAdvance =
+    localTests.successes >= requiredSuccesses &&
+    localTests.failures >= requiredFailures;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -69,14 +124,130 @@ export function SkillRollModal({
             {skillName} Test
           </DialogTitle>
           <DialogDescription>
-            Skill Level: {skillValue} | Tests: {localTests.successes}S / {localTests.failures}F
+            Level {skillValue} | Tests: {localTests.successes}S /{" "}
+            {localTests.failures}F
           </DialogDescription>
         </DialogHeader>
 
+        {!result && !recording && (
+          <>
+            {/* Beginner's Luck Learning (Level 0) */}
+            {isLearning && (
+              <div className="border rounded-lg p-4 bg-blue-500/10 border-blue-500/30 space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">
+                    {`Learning Skill (Beginner's Luck)`}
+                  </span>
+                  {learningProgress >= requiredLearningTests && (
+                    <span className="text-blue-500 font-semibold">
+                      Ready to Learn!
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Test Progress</span>
+                    <span
+                      className={
+                        learningProgress >= requiredLearningTests
+                          ? "text-blue-500 font-medium"
+                          : ""
+                      }
+                    >
+                      {learningProgress} / {requiredLearningTests}
+                    </span>
+                  </div>
+                  <Progress value={learningTestProgress} className="h-2" />
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  {learningProgress < requiredLearningTests &&
+                    `Need ${
+                      requiredLearningTests - learningProgress
+                    } more test(s) to learn this skill.`}
+                </p>
+              </div>
+            )}
+
+            {/* Skill Advancement (Level > 0) */}
+            {skillValue > 0 && (
+              <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">
+                    Progress to Level {skillValue + 1}
+                  </span>
+                  {canAdvance && (
+                    <span className="text-green-500 font-semibold">
+                      Ready to Advance!
+                    </span>
+                  )}
+                </div>
+
+                {/* Success requirement */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Successes</span>
+                    <span
+                      className={
+                        localTests.successes >= requiredSuccesses
+                          ? "text-green-500 font-medium"
+                          : ""
+                      }
+                    >
+                      {localTests.successes} / {requiredSuccesses}
+                    </span>
+                  </div>
+                  <Progress value={successProgress} className="h-2" />
+                </div>
+
+                {/* Failure requirement */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Failures</span>
+                    <span
+                      className={
+                        localTests.failures >= requiredFailures
+                          ? "text-green-500 font-medium"
+                          : ""
+                      }
+                    >
+                      {localTests.failures} / {requiredFailures}
+                    </span>
+                  </div>
+                  <Progress value={failureProgress} className="h-2" />
+                </div>
+
+                {!canAdvance && (
+                  <p className="text-xs text-muted-foreground text-center pt-1">
+                    {localTests.successes < requiredSuccesses &&
+                    localTests.failures < requiredFailures
+                      ? `Need ${
+                          requiredSuccesses - localTests.successes
+                        } more success(es) and ${
+                          requiredFailures - localTests.failures
+                        } more failure(s)`
+                      : localTests.successes < requiredSuccesses
+                      ? `Need ${
+                          requiredSuccesses - localTests.successes
+                        } more success(es)`
+                      : `Need ${
+                          requiredFailures - localTests.failures
+                        } more failure(s)`}
+                  </p>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
         <div className="flex flex-col items-center gap-6 py-6">
+          {/* Initial state: Show success/fail buttons */}
           {!result && !recording && (
             <div className="flex flex-col gap-3 w-full">
-              <p className="text-center text-sm text-muted-foreground mb-2">Roll your dice and record the result:</p>
+              <p className="text-center text-sm text-muted-foreground mb-2">
+                Roll your dice and record the result:
+              </p>
               <Button
                 onClick={() => handleRecordResult(true)}
                 size="lg"
@@ -85,13 +256,19 @@ export function SkillRollModal({
                 <CheckCircle2 className="h-5 w-5 mr-2" />
                 Success
               </Button>
-              <Button onClick={() => handleRecordResult(false)} size="lg" variant="destructive" className="w-full">
+              <Button
+                onClick={() => handleRecordResult(false)}
+                size="lg"
+                variant="destructive"
+                className="w-full"
+              >
                 <XCircle className="h-5 w-5 mr-2" />
                 Fail
               </Button>
             </div>
           )}
 
+          {/* Recording state: Show loading indicator */}
           {recording && (
             <div className="flex flex-col items-center gap-4">
               <Dices className="h-16 w-16 animate-pulse text-primary" />
@@ -99,12 +276,36 @@ export function SkillRollModal({
             </div>
           )}
 
-          {result === "success" && (
+          {/* Level up celebration: Show advancement screen */}
+          {leveledUp && (
+            <div className="flex flex-col items-center gap-4 text-center bg-gradient-to-r from-amber-500/10 to-orange-500/10 p-6 rounded-lg border border-amber-500/20">
+              <TrendingUp className="h-20 w-20 text-amber-500" />
+              <div>
+                <h3 className="text-2xl font-bold text-amber-500">
+                  {type === "ability" ? "Ability" : "Skill"} Advanced!
+                </h3>
+                <p className="text-muted-foreground mt-2">
+                  {skillName} advanced to level {skillValue + 1}!
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Test progress has been reset.
+                </p>
+              </div>
+              <Button onClick={handleClose} className="w-full">
+                Continue
+              </Button>
+            </div>
+          )}
+
+          {/* Success result: Show success screen */}
+          {!leveledUp && result === "success" && (
             <div className="flex flex-col items-center gap-4 text-center">
               <CheckCircle2 className="h-20 w-20 text-green-500" />
               <div>
                 <h3 className="text-2xl font-bold text-green-500">Success!</h3>
-                <p className="text-muted-foreground mt-2">Total successes: {localTests.successes}</p>
+                <p className="text-muted-foreground mt-2">
+                  Total successes: {localTests.successes}
+                </p>
               </div>
               <Button onClick={handleClose} className="w-full">
                 Close
@@ -112,12 +313,15 @@ export function SkillRollModal({
             </div>
           )}
 
-          {result === "fail" && (
+          {/* Fail result: Show fail screen */}
+          {!leveledUp && result === "fail" && (
             <div className="flex flex-col items-center gap-4 text-center">
               <XCircle className="h-20 w-20 text-red-500" />
               <div>
                 <h3 className="text-2xl font-bold text-red-500">Fail!</h3>
-                <p className="text-muted-foreground mt-2">Total failures: {localTests.failures}</p>
+                <p className="text-muted-foreground mt-2">
+                  Total failures: {localTests.failures}
+                </p>
               </div>
               <Button onClick={handleClose} className="w-full">
                 Close
@@ -125,13 +329,7 @@ export function SkillRollModal({
             </div>
           )}
         </div>
-
-        <div className="flex justify-between text-sm text-muted-foreground border-t pt-4">
-          <span>Successes: {localTests.successes}</span>
-          <span>Failures: {localTests.failures}</span>
-          <span>Total: {localTests.successes + localTests.failures}</span>
-        </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
