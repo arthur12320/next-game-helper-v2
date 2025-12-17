@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   updateSCCondition,
@@ -12,6 +12,8 @@ import {
   updateInventoryItem,
   deleteInventoryItem,
 } from "@/app/actions/sc-characters"
+import { getAllSkills, updateSkill } from "@/app/actions/sc-skills"
+
 import { toast } from "sonner"
 import { SkillRollModal } from "./SkillRollModal"
 import { CharacterHeader } from "./play-mode/CharacterHeader"
@@ -21,6 +23,7 @@ import { ConditionsTab } from "./play-mode/ConditionsTab"
 import { SkillsTab } from "./play-mode/SkillsTab"
 import { InventoryTab } from "./play-mode/InventoryTab"
 import { SCCharacter } from "@/db/schema/sc-character"
+import { SCSkill } from "@/db/schema/sc-skills"
 import { BackgroundTab } from "./play-mode/BackgroundTable"
 
 interface SCPlayModeProps {
@@ -38,10 +41,24 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null)
   const [editingItemName, setEditingItemName] = useState("")
 
+  const [allSkills, setAllSkills] = useState<SCSkill[]>([])
+  const [skillsLoading, setSkillsLoading] = useState(true)
+
   const [selectedSkill, setSelectedSkill] = useState<{ name: string; value: number; type: "skill" | "ability" } | null>(
     null,
   )
   const [rollModalOpen, setRollModalOpen] = useState(false)
+
+  useEffect(() => {
+    async function fetchSkills() {
+      const result = await getAllSkills()
+      if (result.success && result.skills) {
+        setAllSkills(result.skills)
+      }
+      setSkillsLoading(false)
+    }
+    fetchSkills()
+  }, [])
 
   const handleAbilityChange = async (ability: string, delta: number) => {
     const newValue = Math.max(0, localAbilities[ability as keyof typeof localAbilities] + delta)
@@ -180,6 +197,30 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
     [character.id, inventory],
   )
 
+  const handleSkillAbilityChange = useCallback(
+    async (skillId: string, newAbility: string, e: React.MouseEvent) => {
+      e.stopPropagation()
+
+      const skill = allSkills.find((s) => s.id === skillId)
+      if (!skill) return
+
+      const result = await updateSkill(skillId, {
+        name: skill.name,
+        ability: newAbility,
+        category: skill.category,
+      })
+
+      if (result.success) {
+        // Update local state
+        setAllSkills(allSkills.map((s) => (s.id === skillId ? { ...s, ability: newAbility } : s)))
+        toast("Skill Updated", { description: `${skill.name} now uses ${newAbility}` })
+      } else {
+        toast.error("Error", { description: result.error || "Failed to update skill ability" })
+      }
+    },
+    [allSkills],
+  )
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const activeConditions = Object.entries(localConditions).filter(([_, active]) => active)
 
@@ -216,13 +257,17 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
 
         <TabsContent value="skills">
           <SkillsTab
-            skills={character.skills}
-            skillTests={character.skillTests as Record<string, { successes: number; failures: number }> | undefined}
+            allSkills={allSkills}
+            characterSkills={character.skills}
+            skillTests={character.skillTests as Record<string, { successes: number; failures: number }>}
+            characterId={character.id}
             editMode={editMode}
+            skillsLoading={skillsLoading}
             onEditModeToggle={() => setEditMode(!editMode)}
             onSkillClick={handleSkillClick}
             onSkillLevelChange={handleSkillLevelChange}
             onTestCountChange={handleTestCountChange}
+            onAbilityChange={handleSkillAbilityChange}
           />
         </TabsContent>
 
