@@ -4,9 +4,8 @@ import { useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { CheckCircle2, XCircle, Dices } from "lucide-react"
-import { recordSkillTest } from "@/app/actions/sc-characters"
+import { recordSkillTest, recordAbilityTest } from "@/app/actions/sc-characters"
 import { toast } from "sonner"
-
 
 interface SkillRollModalProps {
   isOpen: boolean
@@ -15,6 +14,7 @@ interface SkillRollModalProps {
   skillValue: number
   characterId: string
   skillTests?: { successes: number; failures: number }
+  type?: "skill" | "ability"
 }
 
 export function SkillRollModal({
@@ -24,6 +24,7 @@ export function SkillRollModal({
   skillValue,
   characterId,
   skillTests,
+  type = "skill",
 }: SkillRollModalProps) {
   const [recording, setRecording] = useState(false)
   const [result, setResult] = useState<"success" | "fail" | null>(null)
@@ -33,12 +34,19 @@ export function SkillRollModal({
     setRecording(true)
     setResult(isSuccess ? "success" : "fail")
 
-    // Record the test result
-    const recordResult = await recordSkillTest(characterId, skillName, isSuccess)
-    if (recordResult.success && recordResult.skillTest) {
-      setLocalTests(recordResult.skillTest)
+    const recordResult =
+      type === "ability"
+        ? await recordAbilityTest(characterId, skillName, isSuccess)
+        : await recordSkillTest(characterId, skillName, isSuccess)
+
+    if (recordResult.success) {
+      if(type === "ability" && "abilityTest" in recordResult) {
+      setLocalTests(recordResult.abilityTest as {successes: number; failures: number})
+      } else if("skillTest" in recordResult) {
+      setLocalTests(recordResult.skillTest as {successes: number; failures: number})
+      }
     } else {
-      toast.warning("Warning",{
+      toast.error("Warning", {
         description: "Couldn't save roll result",
       })
     }

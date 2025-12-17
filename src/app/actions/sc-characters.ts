@@ -7,8 +7,9 @@ import { eq } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { auth } from "../../../auth"
 
+
 const DEFAULT_SKILLS: Record<string, number> = {
-  // Crafting & Technical
+  // Crafting & Technical (all use Health for fine motor skills)
   Electronics: 0,
   Mechanics: 0,
   Engineering: 0,
@@ -17,7 +18,7 @@ const DEFAULT_SKILLS: Record<string, number> = {
   Gravitics: 0,
   Demolitions: 0,
   Screens: 0,
-  // Exploration & Survival
+  // Exploration & Survival (mostly Health for physical)
   Athletics: 0,
   "Zero-G": 0,
   Survival: 0,
@@ -34,7 +35,7 @@ const DEFAULT_SKILLS: Record<string, number> = {
   "Sailing Ships": 0,
   Submarine: 0,
   Mole: 0,
-  // Social & Interpersonal
+  // Social & Interpersonal (mostly Will for social interaction)
   Leadership: 0,
   Instruction: 0,
   Barter: 0,
@@ -47,7 +48,7 @@ const DEFAULT_SKILLS: Record<string, number> = {
   Performance: 0,
   Empathy: 0,
   Willpower: 0,
-  // Lore & Knowledge
+  // Lore & Knowledge (mostly Mindchip for knowledge)
   Ecology: 0,
   Genetics: 0,
   Botanics: 0,
@@ -68,7 +69,7 @@ const DEFAULT_SKILLS: Record<string, number> = {
   "Military Strategy": 0,
   "Combat Tactics": 0,
   "Veterinary Medicine": 0,
-  // Combat
+  // Combat (mostly Health for physical combat)
   Archery: 0,
   "Bludgeoning Weapons": 0,
   "Natural Weapons": 0,
@@ -282,71 +283,7 @@ export async function updateSCAbility(characterId: string, ability: keyof SCChar
   }
 }
 
-export async function updateSCSkill(characterId: string, skill: string, value: number) {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return { success: false, error: "Unauthorized" }
-  }
-
-  try {
-    const [character] = await db
-      .select()
-      .from(scCharacters)
-      .where(eq(scCharacters.id, characterId))
-
-    if (!character) {
-      return { success: false, error: "Character not found" }
-    }
-
-    const updatedSkills = {
-      ...character.skills,
-      [skill]: value,
-    }
-
-    await db
-      .update(scCharacters)
-      .set({
-        skills: updatedSkills,
-        updatedAt: new Date(),
-      })
-      .where(eq(scCharacters.id, characterId))
-
-    revalidatePath(`/sc-characters/${characterId}/play`)
-    return { success: true }
-  } catch (error) {
-    console.error("Error updating skill:", error)
-    return { success: false, error: "Failed to update skill" }
-  }
-}
-
-export async function updateSCTokens(
-  characterId: string,
-  tokenType: "interventionTokens" | "heroTokens",
-  value: number,
-) {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return { success: false, error: "Unauthorized" }
-  }
-
-  try {
-    await db
-      .update(scCharacters)
-      .set({
-        [tokenType]: value,
-        updatedAt: new Date(),
-      })
-      .where(eq(scCharacters.id, characterId))
-
-    revalidatePath(`/sc-characters/${characterId}/play`)
-    return { success: true }
-  } catch (error) {
-    console.error("Error updating tokens:", error)
-    return { success: false, error: "Failed to update tokens" }
-  }
-}
-
-export async function recordSkillTest(characterId: string, skill: string, success: boolean) {
+export async function recordSkillTest(characterId: string, skillId: string, success: boolean) {
   const session = await auth()
   if (!session?.user?.id) {
     return { success: false, error: "Unauthorized" }
@@ -363,7 +300,7 @@ export async function recordSkillTest(characterId: string, skill: string, succes
     }
 
     const currentTests = character.skillTests || {}
-    const skillTest = currentTests[skill] || { successes: 0, failures: 0 }
+    const skillTest = currentTests[skillId] || { successes: 0, failures: 0 }
 
     if (success) {
       skillTest.successes += 1
@@ -373,7 +310,7 @@ export async function recordSkillTest(characterId: string, skill: string, succes
 
     const updatedTests = {
       ...currentTests,
-      [skill]: skillTest,
+      [skillId]: skillTest,
     }
 
     await db
@@ -392,7 +329,7 @@ export async function recordSkillTest(characterId: string, skill: string, succes
   }
 }
 
-export async function updateSkillTest(characterId: string, skill: string, successes: number, failures: number) {
+export async function updateSkillTest(characterId: string, skillId: string, successes: number, failures: number) {
   const session = await auth()
   if (!session?.user?.id) {
     return { success: false, error: "Unauthorized" }
@@ -411,7 +348,7 @@ export async function updateSkillTest(characterId: string, skill: string, succes
     const currentTests = character.skillTests || {}
     const updatedTests = {
       ...currentTests,
-      [skill]: {
+      [skillId]: {
         successes: Math.max(0, successes),
         failures: Math.max(0, failures),
       },
@@ -433,7 +370,7 @@ export async function updateSkillTest(characterId: string, skill: string, succes
   }
 }
 
-export async function updateSCSkillLevel(characterId: string, skill: string, newLevel: number) {
+export async function updateSCSkillLevel(characterId: string, skillId: string, newLevel: number) {
   const session = await auth()
   if (!session?.user?.id) {
     return { success: false, error: "Unauthorized" }
@@ -451,14 +388,14 @@ export async function updateSCSkillLevel(characterId: string, skill: string, new
 
     const updatedSkills = {
       ...character.skills,
-      [skill]: Math.max(0, newLevel),
+      [skillId]: Math.max(0, newLevel),
     }
 
     // Reset skill test counts when level changes
     const currentTests = character.skillTests || {}
     const updatedTests = {
       ...currentTests,
-      [skill]: { successes: 0, failures: 0 },
+      [skillId]: { successes: 0, failures: 0 },
     }
 
     await db
@@ -475,6 +412,139 @@ export async function updateSCSkillLevel(characterId: string, skill: string, new
   } catch (error) {
     console.error("Error updating skill level:", error)
     return { success: false, error: "Failed to update skill level" }
+  }
+}
+
+// Play mode actions for updating abilities and their tests
+export async function recordAbilityTest(characterId: string, ability: string, success: boolean) {
+  const session = await auth()
+  if (!session?.user?.id) {
+    return { success: false, error: "Unauthorized" }
+  }
+
+  try {
+    const [character] = await db
+      .select()
+      .from(scCharacters)
+      .where(eq(scCharacters.id, characterId))
+
+    if (!character) {
+      return { success: false, error: "Character not found" }
+    }
+
+    const currentTests = character.abilityTests || {}
+    const abilityTest = currentTests[ability] || { successes: 0, failures: 0 }
+
+    if (success) {
+      abilityTest.successes += 1
+    } else {
+      abilityTest.failures += 1
+    }
+
+    const updatedTests = {
+      ...currentTests,
+      [ability]: abilityTest,
+    }
+
+    await db
+      .update(scCharacters)
+      .set({
+        abilityTests: updatedTests,
+        updatedAt: new Date(),
+      })
+      .where(eq(scCharacters.id, characterId))
+
+    revalidatePath(`/sc-characters/${characterId}/play`)
+    return { success: true, abilityTest }
+  } catch (error) {
+    console.error("Error recording ability test:", error)
+    return { success: false, error: "Failed to record ability test" }
+  }
+}
+
+export async function updateAbilityTest(characterId: string, ability: string, successes: number, failures: number) {
+  const session = await auth()
+  if (!session?.user?.id) {
+    return { success: false, error: "Unauthorized" }
+  }
+
+  try {
+    const [character] = await db
+      .select()
+      .from(scCharacters)
+      .where(eq(scCharacters.id, characterId))
+
+    if (!character) {
+      return { success: false, error: "Character not found" }
+    }
+
+    const currentTests = character.abilityTests || {}
+    const updatedTests = {
+      ...currentTests,
+      [ability]: {
+        successes: Math.max(0, successes),
+        failures: Math.max(0, failures),
+      },
+    }
+
+    await db
+      .update(scCharacters)
+      .set({
+        abilityTests: updatedTests,
+        updatedAt: new Date(),
+      })
+      .where(eq(scCharacters.id, characterId))
+
+    revalidatePath(`/sc-characters/${characterId}/play`)
+    return { success: true }
+  } catch (error) {
+    console.error("Error updating ability test:", error)
+    return { success: false, error: "Failed to update ability test" }
+  }
+}
+
+export async function updateSCAbilityLevel(characterId: string, ability: string, newLevel: number) {
+  const session = await auth()
+  if (!session?.user?.id) {
+    return { success: false, error: "Unauthorized" }
+  }
+
+  try {
+    const [character] = await db
+      .select()
+      .from(scCharacters)
+      .where(eq(scCharacters.id, characterId))
+
+    if (!character) {
+      return { success: false, error: "Character not found" }
+    }
+
+    const updatedAbilities = {
+      ...character.abilities,
+      [ability]: Math.max(0, newLevel),
+    }
+
+    // Reset ability test counts when level changes
+    const currentTests = character.abilityTests || {}
+    const updatedTests = {
+      ...currentTests,
+      [ability]: { successes: 0, failures: 0 },
+    }
+
+    await db
+      .update(scCharacters)
+      .set({
+        abilities: updatedAbilities,
+        abilityTests: updatedTests,
+        updatedAt: new Date(),
+      })
+      .where(eq(scCharacters.id, characterId))
+
+    revalidatePath(`/sc-characters/${characterId}/play`)
+    return { success: true }
+  } catch (error) {
+    console.error("Error updating ability level:", error)
+    return { success: false, error: "Failed to update ability level" }
   }
 }
 
@@ -582,5 +652,142 @@ export async function deleteInventoryItem(characterId: string, index: number) {
   } catch (error) {
     console.error("Error deleting inventory item:", error)
     return { success: false, error: "Failed to delete item" }
+  }
+}
+
+// Custom skill management actions
+export async function addCustomSkill(characterId: string, skillName: string) {
+  const session = await auth()
+  if (!session?.user?.id) {
+    return { success: false, error: "Unauthorized" }
+  }
+
+  try {
+    const [character] = await db
+      .select()
+      .from(scCharacters)
+      .where(eq(scCharacters.id, characterId))
+
+    if (!character) {
+      return { success: false, error: "Character not found" }
+    }
+
+    if (character.skills[skillName]) {
+      return { success: false, error: "Skill already exists" }
+    }
+
+    const updatedSkills = {
+      ...character.skills,
+      [skillName]: 0,
+    }
+
+    await db
+      .update(scCharacters)
+      .set({
+        skills: updatedSkills,
+        updatedAt: new Date(),
+      })
+      .where(eq(scCharacters.id, characterId))
+
+    revalidatePath(`/sc-characters/${characterId}/play`)
+    return { success: true }
+  } catch (error) {
+    console.error("Error adding custom skill:", error)
+    return { success: false, error: "Failed to add skill" }
+  }
+}
+
+export async function updateCustomSkill(
+  characterId: string,
+  oldSkillName: string,
+  newSkillName: string,
+) {
+  const session = await auth()
+  if (!session?.user?.id) {
+    return { success: false, error: "Unauthorized" }
+  }
+
+  try {
+    const [character] = await db
+      .select()
+      .from(scCharacters)
+      .where(eq(scCharacters.id, characterId))
+
+    if (!character) {
+      return { success: false, error: "Character not found" }
+    }
+
+    const oldSkill = character.skills[oldSkillName]
+    if (!oldSkill) {
+      return { success: false, error: "Skill not found" }
+    }
+
+    const updatedSkills = { ...character.skills }
+    delete updatedSkills[oldSkillName]
+    updatedSkills[newSkillName] = oldSkill
+
+    // Transfer test history if skill name changed
+    const currentTests = character.skillTests || {}
+    const updatedTests = { ...currentTests }
+    if (oldSkillName !== newSkillName && currentTests[oldSkillName]) {
+      updatedTests[newSkillName] = currentTests[oldSkillName]
+      delete updatedTests[oldSkillName]
+    }
+
+    await db
+      .update(scCharacters)
+      .set({
+        skills: updatedSkills,
+        skillTests: updatedTests,
+        updatedAt: new Date(),
+      })
+      .where(eq(scCharacters.id, characterId))
+
+    revalidatePath(`/sc-characters/${characterId}/play`)
+    return { success: true }
+  } catch (error) {
+    console.error("Error updating custom skill:", error)
+    return { success: false, error: "Failed to update skill" }
+  }
+}
+
+export async function deleteCustomSkill(characterId: string, skillName: string) {
+  const session = await auth()
+  if (!session?.user?.id) {
+    return { success: false, error: "Unauthorized" }
+  }
+
+  try {
+    const [character] = await db
+      .select()
+      .from(scCharacters)
+      .where(eq(scCharacters.id, characterId))
+
+    if (!character) {
+      return { success: false, error: "Character not found" }
+    }
+
+    const updatedSkills = { ...character.skills }
+    delete updatedSkills[skillName]
+
+    // Also remove test history
+    const currentTests = character.skillTests || {}
+    const updatedTests = { ...currentTests }
+    delete updatedTests[skillName]
+
+    await db
+      .update(scCharacters)
+      .set({
+        skills: updatedSkills,
+        skillTests: updatedTests,
+        updatedAt: new Date(),
+      })
+      .where(eq(scCharacters.id, characterId))
+
+    revalidatePath(`/sc-characters/${characterId}/play`)
+    return { success: true }
+  } catch (error) {
+    console.error("Error deleting custom skill:", error)
+    return { success: false, error: "Failed to delete skill" }
   }
 }

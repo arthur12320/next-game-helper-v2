@@ -1,139 +1,84 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { SCCharacter } from "@/db/schema/sc-character"
+import { SCSkill } from "@/db/schema/sc-skills"
+import { getAllSkills } from "@/app/actions/sc-skills"
 
 interface SkillsStepProps {
   data: Partial<SCCharacter>
   onUpdate: (updates: Partial<SCCharacter>) => void
 }
 
-const SKILL_CATEGORIES = {
-  "Crafting & Technical": [
-    "Electronics",
-    "Mechanics",
-    "Engineering",
-    "Computer",
-    "Comms",
-    "Gravitics",
-    "Demolitions",
-    "Screens",
-  ],
-  "Exploration & Survival": [
-    "Athletics",
-    "Zero-G",
-    "Survival",
-    "Recon",
-    "Navigation",
-    "Grav Vehicle",
-    "Wheeled Vehicle",
-    "Tracked Vehicle",
-    "Riding",
-    "Winged Aircraft",
-    "Rotor Aircraft",
-    "Motorboats",
-    "Ocean Ships",
-    "Sailing Ships",
-    "Submarine",
-    "Mole",
-  ],
-  "Social & Interpersonal": [
-    "Leadership",
-    "Instruction",
-    "Barter",
-    "Diplomacy",
-    "Etiquette",
-    "Streetwise",
-    "Intimidation",
-    "Deception",
-    "Seduction",
-    "Performance",
-    "Empathy",
-    "Willpower",
-  ],
-  "Lore & Knowledge": [
-    "Ecology",
-    "Genetics",
-    "Botanics",
-    "Zoology",
-    "Mathematics",
-    "Chemistry",
-    "Geology",
-    "Physics",
-    "History",
-    "Psychology",
-    "Economics",
-    "Sociology",
-    "Astronomy",
-    "First Aid",
-    "Surgery",
-    "Pharmacology",
-    "Linguistics",
-    "Military Strategy",
-    "Combat Tactics",
-    "Veterinary Medicine",
-  ],
-  Combat: [
-    "Archery",
-    "Bludgeoning Weapons",
-    "Natural Weapons",
-    "Piercing Weapons",
-    "Slashing Weapons",
-    "Shotgun",
-    "Slug Pistol",
-    "Slug Rifle",
-    "Energy Pistol",
-    "Energy Rifle",
-    "Heavy Weapons",
-    "Mounted Weapons",
-    "Battle Dress",
-  ],
-}
-
 export function SkillsStep({ data, onUpdate }: SkillsStepProps) {
   const [searchTerm, setSearchTerm] = useState("")
+  const [allSkills, setAllSkills] = useState<SCSkill[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchSkills = async () => {
+      const result = await getAllSkills()
+      if (result.success && result.skills) {
+        setAllSkills(result.skills)
+      }
+      setIsLoading(false)
+    }
+    fetchSkills()
+  }, [])
 
   const skills = useMemo(() => {
     if (data.skills && Object.keys(data.skills).length > 0) {
       return data.skills
     }
-
-    // Initialize with default values
-    const defaultSkills: Record<string, number> = {}
-    Object.values(SKILL_CATEGORIES)
-      .flat()
-      .forEach((skill) => {
-        defaultSkills[skill] = 0
-      })
-    return defaultSkills
+    return {}
   }, [data.skills])
 
-  const handleSkillChange = (skill: string, value: string) => {
+  const handleSkillChange = (skillId: string, value: string) => {
     const numValue = Number.parseInt(value) || 0
     onUpdate({
       skills: {
         ...skills,
-        [skill]: numValue,
+        [skillId]: numValue,
       },
     })
   }
 
-  const filteredCategories = useMemo(() => {
-    if (!searchTerm) return SKILL_CATEGORIES
+  const skillsByCategory = useMemo(() => {
+    return allSkills.reduce(
+      (acc, skill) => {
+        if (!acc[skill.category]) {
+          acc[skill.category] = []
+        }
+        acc[skill.category].push(skill)
+        return acc
+      },
+      {} as Record<string, SCSkill[]>,
+    )
+  }, [allSkills])
 
-    const filtered: Record<string, string[]> = {}
-    Object.entries(SKILL_CATEGORIES).forEach(([category, categorySkills]) => {
-      const matchingSkills = categorySkills.filter((skill) => skill.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredCategories = useMemo(() => {
+    if (!searchTerm) return skillsByCategory
+
+    const filtered: Record<string, SCSkill[]> = {}
+    Object.entries(skillsByCategory).forEach(([category, categorySkills]) => {
+      const matchingSkills = categorySkills.filter((skill) =>
+        skill.name.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
       if (matchingSkills.length > 0) {
         filtered[category] = matchingSkills
       }
     })
     return filtered
-  }, [searchTerm])
+  }, [searchTerm, skillsByCategory])
+
+  if (isLoading) {
+    return <div className="text-center py-8 text-muted-foreground">Loading skills...</div>
+  }
 
   return (
     <div className="space-y-4">
@@ -147,11 +92,11 @@ export function SkillsStep({ data, onUpdate }: SkillsStepProps) {
         />
       </div>
 
-      <Tabs defaultValue={Object.keys(SKILL_CATEGORIES)[0]} className="w-full">
+      <Tabs defaultValue={Object.keys(skillsByCategory)[0]} className="w-full">
         <TabsList className="grid w-full grid-cols-5">
-          {Object.keys(SKILL_CATEGORIES).map((category) => (
+          {Object.keys(skillsByCategory).map((category) => (
             <TabsTrigger key={category} value={category} className="text-xs">
-              {category.split(" & ")[0]}
+              {category}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -160,19 +105,24 @@ export function SkillsStep({ data, onUpdate }: SkillsStepProps) {
           <TabsContent key={category} value={category} className="space-y-2 mt-4">
             <div className="grid grid-cols-2 gap-3">
               {categorySkills.map((skill) => (
-                <Card key={skill}>
+                <Card key={skill.id}>
                   <CardContent className="p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <Label htmlFor={skill} className="text-sm flex-1">
-                        {skill}
-                      </Label>
+                      <div className="flex-1 min-w-0">
+                        <Label htmlFor={skill.id} className="text-sm block mb-1">
+                          {skill.name}
+                        </Label>
+                        <Badge variant="outline" className="text-xs">
+                          {skill.ability}
+                        </Badge>
+                      </div>
                       <Input
-                        id={skill}
+                        id={skill.id}
                         type="number"
                         min="0"
                         max="10"
-                        value={skills[skill] || 0}
-                        onChange={(e) => handleSkillChange(skill, e.target.value)}
+                        value={skills[skill.id] || 0}
+                        onChange={(e) => handleSkillChange(skill.id, e.target.value)}
                         className="w-16 text-center"
                       />
                     </div>

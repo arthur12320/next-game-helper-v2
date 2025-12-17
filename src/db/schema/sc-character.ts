@@ -2,6 +2,7 @@ import { pgTable, text, uuid, timestamp, jsonb, integer } from "drizzle-orm/pg-c
 import { relations } from "drizzle-orm"
 import users from "./users"
 
+
 export const scCharacters = pgTable("sc_characters", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
@@ -31,11 +32,12 @@ export const scCharacters = pgTable("sc_characters", {
       Mindchip: 1,
     }),
 
-  // Ref: Chapter Five - Skills (all skills from the character.py)
-  skills: jsonb("skills").notNull().$type<Record<string, number>>(),
+  skills: jsonb("skills").notNull().$type<Record<string, number>>().default({}),
 
   // For tracking skill advancement
   skillTests: jsonb("skill_tests").$type<Record<string, { successes: number; failures: number }>>().default({}),
+
+  abilityTests: jsonb("ability_tests").$type<Record<string, { successes: number; failures: number }>>().default({}),
 
   // Ref: Chapter Two - Trait Pairs
   traitPairs: jsonb("trait_pairs").$type<Array<{ trait1: string; trait2: string }>>().default([]),
