@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, timestamp, jsonb, integer } from "drizzle-orm/pg-core"
+import { pgTable, text, uuid, timestamp, jsonb } from "drizzle-orm/pg-core"
 import { relations } from "drizzle-orm"
 import users from "./users"
 
@@ -41,10 +41,6 @@ export const scCharacters = pgTable("sc_characters", {
 
   // Ref: Chapter Two - Trait Pairs
   traitPairs: jsonb("trait_pairs").$type<Array<{ trait1: string; trait2: string }>>().default([]),
-
-  // Meta-Currency
-  interventionTokens: integer("intervention_tokens").notNull().default(0),
-  heroTokens: integer("hero_tokens").notNull().default(0),
 
   // Ref: Chapter Eight - Conditions
   conditions: jsonb("conditions")

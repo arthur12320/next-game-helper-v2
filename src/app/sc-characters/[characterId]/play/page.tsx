@@ -1,9 +1,10 @@
 import { fetchSCCharacter } from "@/app/actions/sc-characters"
+import { getGlobalTokens } from "@/app/actions/global-tokens"
+import { SCPlayMode } from "@/components/sc-character/SCPlayMode"
 import { notFound } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
-import { SCPlayMode } from "@/components/sc-character/SCPlayMode"
 
 interface PlayModePageProps {
   params: Promise<{ characterId: string }>
@@ -16,6 +17,9 @@ export default async function SCPlayModePage({ params }: PlayModePageProps) {
   if (!character) {
     notFound()
   }
+
+  const tokensResult = await getGlobalTokens()
+  const globalTokens = tokensResult.tokens?.interventionTokens || 0
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-6xl">
@@ -31,7 +35,7 @@ export default async function SCPlayModePage({ params }: PlayModePageProps) {
         </Button>
       </div>
 
-      <SCPlayMode character={character} />
+      <SCPlayMode character={character} initialGlobalTokens={globalTokens} />
     </div>
   )
 }

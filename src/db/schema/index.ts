@@ -16,6 +16,7 @@ export { sessionPresence } from "./rpgSessions";
 export { maps } from "./maps";
 export { scCharacters } from "./sc-character";
 export { scSkills } from "./sc-skills";
+export { globalTokens } from "./global-token";
 
 // Then export the relations (if needed)
 export { campaignInviteRelations } from "./campaignInvites";

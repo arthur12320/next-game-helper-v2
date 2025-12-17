@@ -22,19 +22,20 @@ import { TokensCard } from "./play-mode/TokensCard"
 import { ConditionsTab } from "./play-mode/ConditionsTab"
 import { SkillsTab } from "./play-mode/SkillsTab"
 import { InventoryTab } from "./play-mode/InventoryTab"
+import { updateGlobalTokens } from "@/app/actions/global-tokens"
 import { SCCharacter } from "@/db/schema/sc-character"
 import { SCSkill } from "@/db/schema/sc-skills"
 import { BackgroundTab } from "./play-mode/BackgroundTable"
 
 interface SCPlayModeProps {
   character: SCCharacter
+  initialGlobalTokens: number
 }
 
-export function SCPlayMode({ character }: SCPlayModeProps) {
+export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) {
   const [localConditions, setLocalConditions] = useState(character.conditions)
   const [localAbilities, setLocalAbilities] = useState(character.abilities)
-  const [interventionTokens, setInterventionTokens] = useState(character.interventionTokens)
-  const [heroTokens, setHeroTokens] = useState(character.heroTokens)
+  const [interventionTokens, setInterventionTokens] = useState(initialGlobalTokens)
   const [inventory, setInventory] = useState<string[]>(character.inventory || [])
   const [editMode, setEditMode] = useState(false)
   const [newItemName, setNewItemName] = useState("")
@@ -79,20 +80,16 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
     }
   }
 
-  const handleTokenChange = async (type: "interventionTokens" | "heroTokens", delta: number) => {
-    const currentValue = type === "interventionTokens" ? interventionTokens : heroTokens
-    const newValue = Math.max(0, currentValue + delta)
+  const handleTokenChange = async (delta: number) => {
+    const newValue = Math.max(0, interventionTokens + delta)
+    setInterventionTokens(newValue)
 
-    if (type === "interventionTokens") {
-      setInterventionTokens(newValue)
-    } else {
-      setHeroTokens(newValue)
+    const result = await updateGlobalTokens(delta)
+    if (!result.success) {
+      toast.error("Error", { description: "Failed to update tokens" })
+      // Revert on error
+      setInterventionTokens(interventionTokens)
     }
-
-    // const result = await updateSCTokens(character.id, type, newValue)
-    // if (!result.success) {
-    //   toast.error("Error", { description: "Failed to update tokens" })
-    // }
   }
 
   const handleAbilityClick = (abilityName: string, abilityValue: number) => {
@@ -240,7 +237,7 @@ export function SCPlayMode({ character }: SCPlayModeProps) {
           onAbilityChange={handleAbilityChange}
           onAbilityClick={handleAbilityClick}
         />
-        <TokensCard interventionTokens={interventionTokens} heroTokens={heroTokens} onTokenChange={handleTokenChange} />
+        <TokensCard interventionTokens={interventionTokens} onTokenChange={handleTokenChange} />
       </div>
 
       <Tabs defaultValue="conditions" className="w-full">
