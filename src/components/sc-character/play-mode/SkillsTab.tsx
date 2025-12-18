@@ -11,34 +11,39 @@ import { Dices, Settings, Plus, Loader2 } from "lucide-react"
 import { SkillItem } from "./SkillItem"
 import { createSkill } from "@/app/actions/sc-skills"
 import { toast } from "sonner"
+import { Badge } from "@/components/ui/badge"
 import { SCSkill } from "@/db/schema/sc-skills"
-
 
 interface SkillsTabProps {
   allSkills: SCSkill[]
   characterSkills: Record<string, number>
+  mindchipBoosts: Record<string, number>
   skillTests: Record<string, { successes: number; failures: number }> | undefined
-  characterId: string
   editMode: boolean
   skillsLoading: boolean
+  mindchipLevel: number
   onEditModeToggle: () => void
   onSkillClick: (skillName: string, skillValue: number) => void
   onSkillLevelChange: (skill: string, delta: number, e: React.MouseEvent) => void
   onTestCountChange: (skill: string, type: "successes" | "failures", delta: number, e: React.MouseEvent) => void
   onAbilityChange: (skillId: string, newAbility: string, e: React.MouseEvent) => void
+  onMindchipBoostChange: (skillName: string, delta: number, e: React.MouseEvent) => void
 }
 
 export function SkillsTab({
   allSkills,
   characterSkills,
+  mindchipBoosts,
   skillTests,
   editMode,
   skillsLoading,
+  mindchipLevel,
   onEditModeToggle,
   onSkillClick,
   onSkillLevelChange,
   onTestCountChange,
   onAbilityChange,
+  onMindchipBoostChange,
 }: SkillsTabProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [newSkillName, setNewSkillName] = useState("")
@@ -46,13 +51,16 @@ export function SkillsTab({
   const [newSkillCategory, setNewSkillCategory] = useState("")
   const [isCreating, setIsCreating] = useState(false)
 
+  const totalBoostsUsed = Object.values(mindchipBoosts).reduce((sum, val) => sum + val, 0)
+  const mindchipAvailable = mindchipLevel - totalBoostsUsed
   const mergedSkills = useMemo(() => {
     return allSkills.map((skill) => ({
       ...skill,
       level: characterSkills[skill.name] || 0,
+      mindchipBoost: mindchipBoosts[skill.name] || 0,
       tests: skillTests?.[skill.name] || { successes: 0, failures: 0 },
     }))
-  }, [allSkills, characterSkills, skillTests])
+  }, [allSkills, characterSkills, mindchipBoosts, skillTests])
 
   const trainedSkills = mergedSkills.filter((skill) => skill.level > 0).sort((a, b) => b.level - a.level)
 
@@ -113,6 +121,17 @@ export function SkillsTab({
           <div className="flex items-center gap-2">
             <Dices className="h-5 w-5" />
             <h3 className="text-lg font-semibold">Skills</h3>
+            {editMode && (
+              <Badge variant="outline" className="text-xs bg-cyan-500/10 text-cyan-700 border-cyan-500/20">
+                🧠 {mindchipAvailable}/{mindchipLevel} available
+              </Badge>
+            )}
+
+            {mindchipAvailable < 0 && (
+              <Badge variant="outline" className="text-xs bg-red-500/10 text-red-700 border-red-500/20">
+                🧠 negative mindchip available edit to fix it
+              </Badge>
+            )}
           </div>
           <div className="flex gap-2">
             <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
@@ -192,13 +211,21 @@ export function SkillsTab({
                     skill={skill.name}
                     ability={skill.ability}
                     value={skill.level}
+                    mindchipBoost={skill.mindchipBoost}
                     tests={skill.tests}
                     editMode={editMode}
                     isTrained={true}
-                    onClick={() => onSkillClick(skill.name, skill.level)}
+                    onClick={() => {
+
+                      console.log("got here")
+                      console.log("skill click", skill.name, skill.level)
+                      onSkillClick(skill.name, skill.level )
+                    }}
                     onSkillLevelChange={(delta, e) => onSkillLevelChange(skill.name, delta, e)}
                     onTestCountChange={(type, delta, e) => onTestCountChange(skill.name, type, delta, e)}
                     onAbilityChange={onAbilityChange}
+                    onMindchipBoostChange={(delta, e) => onMindchipBoostChange(skill.name, delta, e)}
+                    mindchipAvailable={mindchipAvailable}
                   />
                 ))}
               </div>
@@ -218,13 +245,16 @@ export function SkillsTab({
                       skill={skill.name}
                       ability={skill.ability}
                       value={skill.level}
+                      mindchipBoost={skill.mindchipBoost}
                       tests={skill.tests}
                       editMode={editMode}
                       isTrained={false}
-                      onClick={() => onSkillClick(skill.name, skill.level)}
+                      onClick={() => onSkillClick(skill.name, skill.level )}
                       onSkillLevelChange={(delta, e) => onSkillLevelChange(skill.name, delta, e)}
                       onTestCountChange={(type, delta, e) => onTestCountChange(skill.name, type, delta, e)}
                       onAbilityChange={onAbilityChange}
+                      onMindchipBoostChange={(delta, e) => onMindchipBoostChange(skill.name, delta, e)}
+                      mindchipAvailable={mindchipAvailable}
                     />
                   ))}
                 </div>

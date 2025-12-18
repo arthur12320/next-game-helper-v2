@@ -916,3 +916,61 @@ export async function deleteCustomSkill(
     return { success: false, error: "Failed to delete skill" };
   }
 }
+
+// Mindchip boost management actions
+export async function updateMindchipBoost(characterId: string, skillName: string, boostAmount: number) {
+  const session = await auth()
+  if (!session?.user?.id) {
+    return { success: false, error: "Unauthorized" }
+  }
+
+  try {
+    const [character] = await db
+      .select()
+      .from(scCharacters)
+      .where(eq(scCharacters.id, characterId))
+
+    if (!character) {
+      return { success: false, error: "Character not found" }
+    }
+
+    const mindchipLevel = character.abilities.Mindchip
+    const currentBoosts = character.mindchipBoosts || {}
+
+    // Calculate total boosts being used
+    const totalBoosts =
+      Object.values(currentBoosts).reduce((sum, val) => sum + val, 0) - (currentBoosts[skillName] || 0) + boostAmount
+
+    // Validate: total boosts cannot exceed Mindchip level
+    if (totalBoosts > mindchipLevel) {
+      return { success: false, error: `Cannot exceed Mindchip level (${mindchipLevel})` }
+    }
+
+    // Validate: individual boost cannot be negative or exceed reasonable limits
+    if (boostAmount < 0 || boostAmount > mindchipLevel) {
+      return { success: false, error: "Invalid boost amount" }
+    }
+
+    const updatedBoosts = { ...currentBoosts }
+    if (boostAmount === 0) {
+      delete updatedBoosts[skillName]
+    } else {
+      updatedBoosts[skillName] = boostAmount
+    }
+
+    await db
+      .update(scCharacters)
+      .set({
+        mindchipBoosts: updatedBoosts,
+        updatedAt: new Date(),
+      })
+      .where(eq(scCharacters.id, characterId))
+
+    revalidatePath(`/sc-characters/${characterId}/play`)
+    revalidatePath(`/sc-characters`)
+    return { success: true, totalBoosts: Object.values(updatedBoosts).reduce((sum, val) => sum + val, 0) }
+  } catch (error) {
+    console.error("Error updating mindchip boost:", error)
+    return { success: false, error: "Failed to update mindchip boost" }
+  }
+}

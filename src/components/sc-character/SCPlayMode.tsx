@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-"use client";
+"use client"
 
-import type React from "react";
-import { useState, useCallback, useEffect } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type React from "react"
+import { useState, useCallback, useEffect } from "react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   updateSCCondition,
   updateSCAbility,
@@ -12,313 +12,256 @@ import {
   addInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
-} from "@/app/actions/sc-characters";
-import { updateGlobalTokens } from "@/app/actions/global-tokens";
-import { getAllSkills, updateSkill } from "@/app/actions/sc-skills";
+  updateMindchipBoost,
+} from "@/app/actions/sc-characters"
+import { updateGlobalTokens } from "@/app/actions/global-tokens"
+import { getAllSkills, updateSkill } from "@/app/actions/sc-skills"
 
-import { toast } from "sonner";
-import { SkillRollModal } from "./SkillRollModal";
-import { CharacterHeader } from "./play-mode/CharacterHeader";
-import { AbilitiesCard } from "./play-mode/AbilitiesCard";
-import { TokensCard } from "./play-mode/TokensCard";
-import { ConditionsTab } from "./play-mode/ConditionsTab";
-import { SkillsTab } from "./play-mode/SkillsTab";
-import { InventoryTab } from "./play-mode/InventoryTab";
-import { SCCharacter } from "@/db/schema/sc-character";
-import { SCSkill } from "@/db/schema/sc-skills";
-import { BackgroundTab } from "./play-mode/BackgroundTable";
+import { toast } from "sonner"
+import { SkillRollModal } from "./SkillRollModal"
+import { CharacterHeader } from "./play-mode/CharacterHeader"
+import { AbilitiesCard } from "./play-mode/AbilitiesCard"
+import { TokensCard } from "./play-mode/TokensCard"
+import { ConditionsTab } from "./play-mode/ConditionsTab"
+import { SkillsTab } from "./play-mode/SkillsTab"
+import { InventoryTab } from "./play-mode/InventoryTab"
+import { SCCharacter } from "@/db/schema/sc-character"
+import { SCSkill } from "@/db/schema/sc-skills"
+import { BackgroundTab } from "./play-mode/BackgroundTable"
 
 interface SCPlayModeProps {
-  character: SCCharacter;
-  initialGlobalTokens: number;
+  character: SCCharacter
+  initialGlobalTokens: number
 }
 
-export function SCPlayMode({
-  character,
-  initialGlobalTokens,
-}: SCPlayModeProps) {
-  const [localConditions, setLocalConditions] = useState(character.conditions);
-  const [localAbilities, setLocalAbilities] = useState(character.abilities);
-  const [interventionTokens, setInterventionTokens] =
-    useState(initialGlobalTokens);
-  const [inventory, setInventory] = useState<string[]>(
-    character.inventory || []
-  );
-  const [editMode, setEditMode] = useState(false);
-  const [newItemName, setNewItemName] = useState("");
-  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
-  const [editingItemName, setEditingItemName] = useState("");
+export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) {
+  const [localConditions, setLocalConditions] = useState(character.conditions)
+  const [localAbilities, setLocalAbilities] = useState(character.abilities)
+  const [interventionTokens, setInterventionTokens] = useState(initialGlobalTokens)
+  const [inventory, setInventory] = useState<string[]>(character.inventory || [])
+  const [editMode, setEditMode] = useState(false)
+  const [newItemName, setNewItemName] = useState("")
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null)
+  const [editingItemName, setEditingItemName] = useState("")
 
-  const [allSkills, setAllSkills] = useState<SCSkill[]>([]);
-  const [skillsLoading, setSkillsLoading] = useState(true);
+  const [mindchipBoosts, setMindchipBoosts] = useState<Record<string, number>>(character.mindchipBoosts || {})
+
+  const [allSkills, setAllSkills] = useState<SCSkill[]>([])
+  const [skillsLoading, setSkillsLoading] = useState(true)
 
   const [selectedSkill, setSelectedSkill] = useState<{
-    name: string;
-    value: number;
-    type: "skill" | "ability";
-    skillId?: string;
-    ability?: string;
-  } | null>(null);
-  const [rollModalOpen, setRollModalOpen] = useState(false);
+    name: string
+    value: number
+    type: "skill" | "ability"
+    skillId?: string
+    ability?: string
+    mindchipBoost?: number
+  } | null>(null)
+  const [rollModalOpen, setRollModalOpen] = useState(false)
 
   useEffect(() => {
-    async function fetchSkills() {
-      const result = await getAllSkills();
-      if (result.success && result.skills) {
-        setAllSkills(result.skills);
-      }
-      setSkillsLoading(false);
+    fetchSkills()
+  }, [])
+
+  const fetchSkills = async () => {
+    const result = await getAllSkills()
+    if (result.success && result.skills) {
+      setAllSkills(result.skills)
     }
-    fetchSkills();
-  }, []);
+    setSkillsLoading(false)
+  }
 
   const handleAbilityChange = async (ability: string, delta: number) => {
-    const newValue = Math.max(
-      0,
-      localAbilities[ability as keyof typeof localAbilities] + delta
-    );
-    setLocalAbilities({ ...localAbilities, [ability]: newValue });
+    const newValue = Math.max(0, localAbilities[ability as keyof typeof localAbilities] + delta)
+    setLocalAbilities({ ...localAbilities, [ability]: newValue })
 
-    const result = await updateSCAbility(
-      character.id,
-      ability as keyof typeof localAbilities,
-      newValue
-    );
+    const result = await updateSCAbility(character.id, ability as keyof typeof localAbilities, newValue)
     if (!result.success) {
-      toast.error("Error", { description: "Failed to update ability" });
+      toast.error("Error", { description: "Failed to update ability" })
     } else {
-      window.location.reload();
+      window.location.reload()
     }
-  };
-
-  const handleAbilityLevelUp = useCallback(
-    (abilityName: string, newLevel: number) => {
-      setLocalAbilities((prev) => ({
-        ...prev,
-        [abilityName]: newLevel,
-      }));
-    },
-    []
-  );
-
-  useEffect(() => {
-    setLocalAbilities(character.abilities);
-  }, [character]);
+  }
 
   const handleConditionChange = async (condition: string, checked: boolean) => {
-    setLocalConditions({ ...localConditions, [condition]: checked });
+    setLocalConditions({ ...localConditions, [condition]: checked })
 
-    const result = await updateSCCondition(
-      character.id,
-      condition as keyof typeof localConditions,
-      checked
-    );
+    const result = await updateSCCondition(character.id, condition as keyof typeof localConditions, checked)
     if (!result.success) {
-      toast.error("Error", { description: "Failed to update condition" });
+      toast.error("Error", { description: "Failed to update condition" })
     }
-  };
+  }
 
   const handleTokenChange = async (delta: number) => {
-    const newValue = Math.max(0, interventionTokens + delta);
-    setInterventionTokens(newValue);
+    const newValue = Math.max(0, interventionTokens + delta)
+    setInterventionTokens(newValue)
 
-    const result = await updateGlobalTokens(delta);
+    const result = await updateGlobalTokens(delta)
     if (!result.success) {
-      toast.error("Error", {
-        description: result.error || "Failed to update tokens",
-      });
+      toast.error("Error", { description: result.error || "Failed to update tokens" })
       // Revert on error
-      setInterventionTokens(interventionTokens);
+      setInterventionTokens(interventionTokens)
     }
-  };
+  }
 
   const handleAbilityClick = (abilityName: string, abilityValue: number) => {
-    setSelectedSkill({
-      name: abilityName,
-      value: abilityValue,
-      type: "ability",
-    });
-    setRollModalOpen(true);
-  };
+    setSelectedSkill({ name: abilityName, value: abilityValue, type: "ability" })
+    setRollModalOpen(true)
+  }
 
   const handleSkillClick = (skillName: string, skillValue: number) => {
+    console.log("hangdle it")
+    console.log("skill click", skillName, skillValue)
     if (!editMode) {
-      const skillInfo = allSkills.find((s) => s.name === skillName);
+      const skillInfo = allSkills.find((s) => s.name === skillName)
+      const boost = mindchipBoosts[skillName] || 0
       setSelectedSkill({
         name: skillName,
         value: skillValue,
         type: "skill",
         skillId: skillInfo?.id,
         ability: skillInfo?.ability,
-      });
-      setRollModalOpen(true);
+        mindchipBoost: boost,
+      })
+      setRollModalOpen(true)
     }
-  };
+  }
 
   const handleTestCountChange = useCallback(
-    async (
-      skill: string,
-      type: "successes" | "failures",
-      delta: number,
-      e: React.MouseEvent
-    ) => {
-      e.stopPropagation();
+    async (skill: string, type: "successes" | "failures", delta: number, e: React.MouseEvent) => {
+      e.stopPropagation()
 
-      const tests = character.skillTests?.[skill] || {
-        successes: 0,
-        failures: 0,
-      };
-      const newSuccesses =
-        type === "successes"
-          ? Math.max(0, tests.successes + delta)
-          : tests.successes;
-      const newFailures =
-        type === "failures"
-          ? Math.max(0, tests.failures + delta)
-          : tests.failures;
+      const tests = character.skillTests?.[skill] || { successes: 0, failures: 0 }
+      const newSuccesses = type === "successes" ? Math.max(0, tests.successes + delta) : tests.successes
+      const newFailures = type === "failures" ? Math.max(0, tests.failures + delta) : tests.failures
 
-      const result = await updateSkillTest(
-        character.id,
-        skill,
-        newSuccesses,
-        newFailures
-      );
+      const result = await updateSkillTest(character.id, skill, newSuccesses, newFailures)
       if (result.success) {
-        toast("Test Count Updated", {
-          description: `${type} count for ${skill} updated successfully`,
-        });
+        toast("Test Count Updated", { description: `${type} count for ${skill} updated successfully` })
       } else {
-        toast.error("Error", {
-          description: result.error || "Failed to update skill tests",
-        });
+        toast.error("Error", { description: result.error || "Failed to update skill tests" })
       }
     },
-    [character.id, character.skillTests]
-  );
+    [character.id, character.skillTests],
+  )
 
   const handleSkillLevelChange = useCallback(
     async (skill: string, delta: number, e: React.MouseEvent) => {
-      e.stopPropagation();
+      e.stopPropagation()
 
-      const currentLevel = character.skills[skill] || 0;
-      const newLevel = Math.max(0, currentLevel + delta);
+      const currentLevel = character.skills[skill] || 0
+      const newLevel = Math.max(0, currentLevel + delta)
 
-      const result = await updateSCSkillLevel(character.id, skill, newLevel);
+      const result = await updateSCSkillLevel(character.id, skill, newLevel)
       if (result.success) {
-        toast("Skill Updated", {
-          description: `${skill} level changed to ${newLevel}. Tests reset.`,
-        });
+        toast("Skill Updated", { description: `${skill} level changed to ${newLevel}. Tests reset.` })
       } else {
-        toast.error("Error", {
-          description: result.error || "Failed to update skill",
-        });
+        toast.error("Error", { description: result.error || "Failed to update skill" })
       }
     },
-    [character.id, character.skills]
-  );
+    [character.id, character.skills],
+  )
+
+  const handleMindchipBoostChange = useCallback(
+    async (skillName: string, delta: number, e: React.MouseEvent) => {
+      e.stopPropagation()
+
+      const currentBoost = mindchipBoosts[skillName] || 0
+      const newBoost = Math.max(0, currentBoost + delta)
+
+      const result = await updateMindchipBoost(character.id, skillName, newBoost)
+      if (result.success) {
+        setMindchipBoosts({ ...mindchipBoosts, [skillName]: newBoost })
+        toast("Mindchip Boost Updated", {
+          description: `${skillName} now has ${newBoost > 0 ? `+${newBoost}` : "no"} Mindchip boost`,
+        })
+      } else {
+        toast.error("Error", { description: result.error || "Failed to update Mindchip boost" })
+      }
+    },
+    [character.id, mindchipBoosts],
+  )
 
   const handleAddItem = useCallback(async () => {
-    if (!newItemName.trim()) return;
+    if (!newItemName.trim()) return
 
-    const result = await addInventoryItem(character.id, newItemName.trim());
+    const result = await addInventoryItem(character.id, newItemName.trim())
     if (result.success) {
-      setInventory([...inventory, newItemName.trim()]);
-      setNewItemName("");
-      toast("Item Added", { description: `${newItemName} added to inventory` });
+      setInventory([...inventory, newItemName.trim()])
+      setNewItemName("")
+      toast("Item Added", { description: `${newItemName} added to inventory` })
     } else {
-      toast.error("Error", {
-        description: result.error || "Failed to add item",
-      });
+      toast.error("Error", { description: result.error || "Failed to add item" })
     }
-  }, [character.id, newItemName, inventory]);
+  }, [character.id, newItemName, inventory])
 
   const handleEditItem = useCallback((index: number, currentName: string) => {
-    setEditingItemIndex(index);
-    setEditingItemName(currentName);
-  }, []);
+    setEditingItemIndex(index)
+    setEditingItemName(currentName)
+  }, [])
 
   const handleSaveEdit = useCallback(
     async (index: number) => {
-      if (!editingItemName.trim()) return;
+      if (!editingItemName.trim()) return
 
-      const result = await updateInventoryItem(
-        character.id,
-        index,
-        editingItemName.trim()
-      );
+      const result = await updateInventoryItem(character.id, index, editingItemName.trim())
       if (result.success) {
-        const updatedInventory = [...inventory];
-        updatedInventory[index] = editingItemName.trim();
-        setInventory(updatedInventory);
-        setEditingItemIndex(null);
-        setEditingItemName("");
-        toast("Item Updated", {
-          description: "Item name updated successfully",
-        });
+        const updatedInventory = [...inventory]
+        updatedInventory[index] = editingItemName.trim()
+        setInventory(updatedInventory)
+        setEditingItemIndex(null)
+        setEditingItemName("")
+        toast("Item Updated", { description: "Item name updated successfully" })
       } else {
-        toast.error("Error", {
-          description: result.error || "Failed to update item",
-        });
+        toast.error("Error", { description: result.error || "Failed to update item" })
       }
     },
-    [character.id, editingItemName, inventory]
-  );
+    [character.id, editingItemName, inventory],
+  )
 
   const handleCancelEdit = useCallback(() => {
-    setEditingItemIndex(null);
-    setEditingItemName("");
-  }, []);
+    setEditingItemIndex(null)
+    setEditingItemName("")
+  }, [])
 
   const handleDeleteItem = useCallback(
     async (index: number) => {
-      const result = await deleteInventoryItem(character.id, index);
+      const result = await deleteInventoryItem(character.id, index)
       if (result.success) {
-        setInventory(inventory.filter((_, i) => i !== index));
-        toast("Item Removed", { description: "Item removed from inventory" });
+        setInventory(inventory.filter((_, i) => i !== index))
+        toast("Item Removed", { description: "Item removed from inventory" })
       } else {
-        toast.error("Error", {
-          description: result.error || "Failed to remove item",
-        });
+        toast.error("Error", { description: result.error || "Failed to remove item" })
       }
     },
-    [character.id, inventory]
-  );
+    [character.id, inventory],
+  )
 
   const handleSkillAbilityChange = useCallback(
     async (skillId: string, newAbility: string, e: React.MouseEvent) => {
-      e.stopPropagation();
+      e.stopPropagation()
 
-      const skill = allSkills.find((s) => s.id === skillId);
-      if (!skill) return;
+      const skill = allSkills.find((s) => s.id === skillId)
+      if (!skill) return
 
       const result = await updateSkill(skillId, {
         name: skill.name,
         ability: newAbility,
         category: skill.category,
-      });
+      })
 
       if (result.success) {
         // Update local state
-        setAllSkills(
-          allSkills.map((s) =>
-            s.id === skillId ? { ...s, ability: newAbility } : s
-          )
-        );
-        toast("Skill Updated", {
-          description: `${skill.name} now uses ${newAbility}`,
-        });
+        setAllSkills(allSkills.map((s) => (s.id === skillId ? { ...s, ability: newAbility } : s)))
+        toast("Skill Updated", { description: `${skill.name} now uses ${newAbility}` })
       } else {
-        toast.error("Error", {
-          description: result.error || "Failed to update skill ability",
-        });
+        toast.error("Error", { description: result.error || "Failed to update skill ability" })
       }
     },
-    [allSkills]
-  );
+    [allSkills],
+  )
 
-  const activeConditions = Object.entries(localConditions).filter(
-    ([_, active]) => active
-  );
+  const activeConditions = Object.entries(localConditions).filter(([_, active]) => active)
 
   return (
     <div className="space-y-6">
@@ -336,10 +279,7 @@ export function SCPlayMode({
           onAbilityChange={handleAbilityChange}
           onAbilityClick={handleAbilityClick}
         />
-        <TokensCard
-          interventionTokens={interventionTokens}
-          onTokenChange={handleTokenChange}
-        />
+        <TokensCard interventionTokens={interventionTokens} onTokenChange={handleTokenChange} />
       </div>
 
       <Tabs defaultValue="conditions" className="w-full">
@@ -351,33 +291,24 @@ export function SCPlayMode({
         </TabsList>
 
         <TabsContent value="conditions">
-          <ConditionsTab
-            conditions={localConditions}
-            onConditionChange={handleConditionChange}
-          />
+          <ConditionsTab conditions={localConditions} onConditionChange={handleConditionChange} />
         </TabsContent>
 
         <TabsContent value="skills">
           <SkillsTab
             allSkills={allSkills}
             characterSkills={character.skills}
-            skillTests={
-              character.skillTests as Record<
-                string,
-                {
-                  successes: number;
-                  failures: number;
-                }
-              >
-            }
-            characterId={character.id}
+            mindchipBoosts={mindchipBoosts}
+            skillTests={character.skillTests as Record<string, { successes: number; failures: number }>}
             editMode={editMode}
             skillsLoading={skillsLoading}
+            mindchipLevel={localAbilities.Mindchip}
             onEditModeToggle={() => setEditMode(!editMode)}
             onSkillClick={handleSkillClick}
             onSkillLevelChange={handleSkillLevelChange}
             onTestCountChange={handleTestCountChange}
             onAbilityChange={handleSkillAbilityChange}
+            onMindchipBoostChange={handleMindchipBoostChange}
           />
         </TabsContent>
 
@@ -412,8 +343,8 @@ export function SCPlayMode({
         <SkillRollModal
           isOpen={rollModalOpen}
           onClose={() => {
-            setRollModalOpen(false);
-            setSelectedSkill(null);
+            setRollModalOpen(false)
+            setSelectedSkill(null)
           }}
           skillName={selectedSkill.name}
           skillValue={selectedSkill.value}
@@ -425,12 +356,14 @@ export function SCPlayMode({
           }
           type={selectedSkill.type}
           abilityValue={
-            character.abilities[
-              selectedSkill.ability as keyof typeof character.abilities
-            ]
+            selectedSkill.ability
+              ? (character.abilities[selectedSkill.ability as keyof typeof character.abilities] as number)
+              : undefined
           }
+          mindchipBoost={selectedSkill.type === "skill" ? selectedSkill.mindchipBoost || 0 : 0}
+          abilityName={selectedSkill.ability || ""}
         />
       )}
     </div>
-  );
+  )
 }

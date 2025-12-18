@@ -2,7 +2,6 @@ import { pgTable, text, uuid, timestamp, jsonb } from "drizzle-orm/pg-core"
 import { relations } from "drizzle-orm"
 import users from "./users"
 
-
 export const scCharacters = pgTable("sc_characters", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
@@ -33,6 +32,9 @@ export const scCharacters = pgTable("sc_characters", {
     }),
 
   skills: jsonb("skills").notNull().$type<Record<string, number>>().default({}),
+
+  mindchipBoosts: jsonb("mindchip_boosts").$type<Record<string, number>>().default({}),
+
 
   // For tracking skill advancement
   skillTests: jsonb("skill_tests").$type<Record<string, { successes: number; failures: number }>>().default({}),

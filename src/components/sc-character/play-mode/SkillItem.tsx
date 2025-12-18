@@ -11,6 +11,7 @@ interface SkillItemProps {
   skill: string
   ability: string
   value: number
+  mindchipBoost?: number
   tests?: { successes: number; failures: number }
   editMode: boolean
   isTrained: boolean
@@ -18,6 +19,8 @@ interface SkillItemProps {
   onSkillLevelChange: (delta: number, e: React.MouseEvent) => void
   onTestCountChange: (type: "successes" | "failures", delta: number, e: React.MouseEvent) => void
   onAbilityChange?: (skillId: string, newAbility: string, e: React.MouseEvent) => void
+  onMindchipBoostChange?: (delta: number, e: React.MouseEvent) => void
+  mindchipAvailable?: number
 }
 
 const abilityColors: Record<string, string> = {
@@ -33,6 +36,7 @@ export function SkillItem({
   skill,
   ability,
   value,
+  mindchipBoost = 0,
   tests,
   editMode,
   isTrained,
@@ -40,10 +44,15 @@ export function SkillItem({
   onSkillLevelChange,
   onTestCountChange,
   onAbilityChange,
+  onMindchipBoostChange,
+  mindchipAvailable = 0,
 }: SkillItemProps) {
   const bgClass = isTrained
     ? "bg-primary/10 hover:bg-primary/20 border-primary/20"
-    : "bg-secondary/50 hover:bg-secondary"
+    : "bg-secondary/10 hover:bg-primary/600"
+
+  
+
 
   return (
     <div
@@ -110,6 +119,42 @@ export function SkillItem({
               {value}
             </Badge>
           )}
+
+          {mindchipBoost > 0 && !editMode && (
+            <Badge variant="outline" className="text-xs bg-cyan-500/10 text-cyan-700 border-cyan-500/20">
+              +{mindchipBoost} 🧠
+            </Badge>
+          )}
+
+          {editMode && onMindchipBoostChange && (
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-5 w-5"
+                onClick={(e) => onMindchipBoostChange(-1, e)}
+                disabled={mindchipBoost === 0}
+                title="Remove Mindchip boost"
+              >
+                <Minus className="h-3 w-3 text-cyan-700" />
+              </Button>
+              <Badge variant="outline" className="text-xs bg-cyan-500/10 text-cyan-700 border-cyan-500/20">
+                {mindchipBoost} 🧠
+              </Badge>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-5 w-5"
+                onClick={(e) => onMindchipBoostChange(1, e)}
+                disabled={mindchipAvailable === 0}
+                title="Add Mindchip boost"
+              >
+                <Plus className="h-3 w-3 text-cyan-700" />
+              </Button>
+            </div>
+          )}
+
+          
           {tests && (tests.successes > 0 || tests.failures > 0) && (
             <div className="flex gap-2">
               {editMode ? (
@@ -117,8 +162,8 @@ export function SkillItem({
                   <div className="flex items-center gap-1">
                     <Button
                       size="icon"
-                      variant="ghost"
-                      className="h-4 w-4 p-0"
+                     variant="ghost"
+                      className="h-4 w-4 p-0 "
                       onClick={(e) => onTestCountChange("successes", -1, e)}
                     >
                       <Minus className="h-3 w-3 text-green-700" />
