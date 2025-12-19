@@ -5,7 +5,6 @@ import type React from "react"
 import { useState, useCallback, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  updateSCCondition,
   updateSCAbility,
   updateSkillTest,
   updateSCSkillLevel,
@@ -14,6 +13,12 @@ import {
   deleteInventoryItem,
   updateMindchipBoost,
 } from "@/app/actions/sc-characters"
+import {
+  addConditionToCharacter,
+  removeConditionFromCharacter,
+  getConditionsForCharacter,
+  getConditions,
+} from "@/app/actions/conditions"
 import { updateGlobalTokens } from "@/app/actions/global-tokens"
 import { getAllSkills, updateSkill } from "@/app/actions/sc-skills"
 
@@ -28,27 +33,50 @@ import { InventoryTab } from "./play-mode/InventoryTab"
 import { SCCharacter } from "@/db/schema/sc-character"
 import { SCSkill } from "@/db/schema/sc-skills"
 import { BackgroundTab } from "./play-mode/BackgroundTable"
+import { GlobalCondition } from "@/db/schema/conditions"
 
 interface SCPlayModeProps {
   character: SCCharacter
   initialGlobalTokens: number
 }
 
+
+/**
+ * Renders the main interface for "play mode" for a Special Circumstances character.
+ * This component manages the character's abilities, skills, conditions, inventory, and more,
+ * allowing for real-time updates and interactions during a game session.
+ * @param {SCPlayModeProps} props - The props for the component, including the character data.
+ */
 export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) {
-  const [localConditions, setLocalConditions] = useState(character.conditions)
+
+  // Local state for character abilities, allowing for optimistic updates.
   const [localAbilities, setLocalAbilities] = useState(character.abilities)
+  // State for the global intervention tokens.
   const [interventionTokens, setInterventionTokens] = useState(initialGlobalTokens)
+  // State for the character's inventory.
   const [inventory, setInventory] = useState<string[]>(character.inventory || [])
+  // State to toggle the edit mode for skills and other fields.
   const [editMode, setEditMode] = useState(false)
+  // State for the name of a new inventory item being added.
   const [newItemName, setNewItemName] = useState("")
+  // State to track the index of the inventory item being edited.
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null)
+  // State for the name of the inventory item being edited.
   const [editingItemName, setEditingItemName] = useState("")
 
+  // State for Mindchip boosts applied to skills.
   const [mindchipBoosts, setMindchipBoosts] = useState<Record<string, number>>(character.mindchipBoosts || {})
+  // State for the character's current conditions.
+  const [characterConditions, setCharacterConditions] = useState<GlobalCondition[]>([]);
+  // State for all available global conditions.
+  const [allGlobalConditions, setAllGlobalConditions] = useState<GlobalCondition[]>([]);
 
+  // State for all available skills in the system.
   const [allSkills, setAllSkills] = useState<SCSkill[]>([])
+  // Loading state for fetching skills.
   const [skillsLoading, setSkillsLoading] = useState(true)
 
+  // State for the skill or ability currently selected for a roll.
   const [selectedSkill, setSelectedSkill] = useState<{
     name: string
     value: number
@@ -57,12 +85,16 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
     ability?: string
     mindchipBoost?: number
   } | null>(null)
+  // State to control the visibility of the skill roll modal.
   const [rollModalOpen, setRollModalOpen] = useState(false)
 
-  useEffect(() => {
-    fetchSkills()
-  }, [])
+  
 
+  // --- Data Fetching Functions ---
+
+  /**
+   * Fetches all skills from the database and updates the local state.
+   */
   const fetchSkills = async () => {
     const result = await getAllSkills()
     if (result.success && result.skills) {
@@ -71,6 +103,50 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
     setSkillsLoading(false)
   }
 
+  /**
+   * Fetches the conditions currently applied to the character.
+   */
+  const fetchCharacterConditions = useCallback(async () => {
+    const result = await getConditionsForCharacter(character.id);
+    if (result.success && result.data) {
+      setCharacterConditions(result.data);
+    } else {
+      toast.error("Error fetching character conditions", { description: result.error });
+    }
+  }, [character.id]);
+
+  /**
+   * Fetches all global conditions available in the system.
+   */
+  const fetchAllGlobalConditions = useCallback(async () => {
+    const result = await getConditions();
+    if (result.success && result.data) {
+      setAllGlobalConditions(result.data);
+    } else {
+      toast.error("Error fetching global conditions", { description: result.error });
+    }
+  }, []);
+
+
+  /**
+   * Fetches all necessary data when the component mounts, including
+   * all skills, the character's current conditions, and all available global conditions.
+   */
+  useEffect(() => {
+    fetchSkills();
+    fetchCharacterConditions();
+    fetchAllGlobalConditions();
+  }, [character.id, fetchAllGlobalConditions, fetchCharacterConditions]);
+
+
+  // --- Event Handlers ---
+
+  /**
+   * Handles changes to a character's ability score.
+   * Updates the local state optimistically and then sends the update to the server.
+   * @param ability - The name of the ability to change.
+   * @param delta - The amount to change the ability by (e.g., 1 or -1).
+   */
   const handleAbilityChange = async (ability: string, delta: number) => {
     const newValue = Math.max(0, localAbilities[ability as keyof typeof localAbilities] + delta)
     setLocalAbilities({ ...localAbilities, [ability]: newValue })
@@ -83,15 +159,32 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
     }
   }
 
-  const handleConditionChange = async (condition: string, checked: boolean) => {
-    setLocalConditions({ ...localConditions, [condition]: checked })
-
-    const result = await updateSCCondition(character.id, condition as keyof typeof localConditions, checked)
-    if (!result.success) {
-      toast.error("Error", { description: "Failed to update condition" })
+  /**
+   * Handles adding or removing a condition from the character.
+   * @param conditionId - The ID of the condition to add or remove.
+   * @param checked - Whether the condition is being added or removed.
+   */
+  const handleConditionChange = async (conditionId: string, checked: boolean) => {
+    let result;
+    if (checked) {
+      result = await addConditionToCharacter(character.id, conditionId);
+    } else {
+      result = await removeConditionFromCharacter(character.id, conditionId);
     }
-  }
 
+    if (result.success) {
+      toast.success("Condition updated successfully.");
+      fetchCharacterConditions(); // Re-fetch conditions to update UI
+    } else {
+      toast.error(result.error || "Failed to update condition");
+    }
+  };
+
+  /**
+   * Handles changes to the global intervention tokens.
+   * Updates the local state and then sends the update to the server.
+   * @param delta - The amount to change the tokens by.
+   */
   const handleTokenChange = async (delta: number) => {
     const newValue = Math.max(0, interventionTokens + delta)
     setInterventionTokens(newValue)
@@ -104,11 +197,21 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
     }
   }
 
+  /**
+   * Opens the skill roll modal when an ability is clicked.
+   * @param abilityName - The name of the ability.
+   * @param abilityValue - The current value of the ability.
+   */
   const handleAbilityClick = (abilityName: string, abilityValue: number) => {
     setSelectedSkill({ name: abilityName, value: abilityValue, type: "ability" })
     setRollModalOpen(true)
   }
 
+  /**
+   * Opens the skill roll modal when a skill is clicked.
+   * @param skillName - The name of the skill.
+   * @param skillValue - The current value of the skill.
+   */
   const handleSkillClick = (skillName: string, skillValue: number) => {
     console.log("hangdle it")
     console.log("skill click", skillName, skillValue)
@@ -127,6 +230,13 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
     }
   }
 
+  /**
+   * Handles changes to the success/failure counts for a skill test.
+   * @param skill - The name of the skill.
+   * @param type - Whether to change "successes" or "failures".
+   * @param delta - The amount to change the count by.
+   * @param e - The mouse event, to stop propagation.
+   */
   const handleTestCountChange = useCallback(
     async (skill: string, type: "successes" | "failures", delta: number, e: React.MouseEvent) => {
       e.stopPropagation()
@@ -145,6 +255,12 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
     [character.id, character.skillTests],
   )
 
+  /**
+   * Handles changes to a skill's level.
+   * @param skill - The name of the skill.
+   * @param delta - The amount to change the level by.
+   * @param e - The mouse event, to stop propagation.
+   */
   const handleSkillLevelChange = useCallback(
     async (skill: string, delta: number, e: React.MouseEvent) => {
       e.stopPropagation()
@@ -162,6 +278,12 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
     [character.id, character.skills],
   )
 
+  /**
+   * Handles changes to a skill's Mindchip boost.
+   * @param skillName - The name of the skill.
+   * @param delta - The amount to change the boost by.
+   * @param e - The mouse event, to stop propagation.
+   */
   const handleMindchipBoostChange = useCallback(
     async (skillName: string, delta: number, e: React.MouseEvent) => {
       e.stopPropagation()
@@ -182,6 +304,11 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
     [character.id, mindchipBoosts],
   )
 
+    // --- Inventory Management Handlers ---
+
+  /**
+   * Handles adding a new item to the inventory.
+   */
   const handleAddItem = useCallback(async () => {
     if (!newItemName.trim()) return
 
@@ -195,11 +322,20 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
     }
   }, [character.id, newItemName, inventory])
 
+  /**
+   * Enters edit mode for a specific inventory item.
+   * @param index - The index of the item to edit.
+   * @param currentName - The current name of the item.
+   */
   const handleEditItem = useCallback((index: number, currentName: string) => {
     setEditingItemIndex(index)
     setEditingItemName(currentName)
   }, [])
 
+  /**
+   * Saves the changes to an inventory item being edited.
+   * @param index - The index of the item being saved.
+   */
   const handleSaveEdit = useCallback(
     async (index: number) => {
       if (!editingItemName.trim()) return
@@ -219,11 +355,18 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
     [character.id, editingItemName, inventory],
   )
 
+  /**
+   * Cancels the edit mode for an inventory item.
+   */
   const handleCancelEdit = useCallback(() => {
     setEditingItemIndex(null)
     setEditingItemName("")
   }, [])
 
+  /**
+   * Deletes an item from the inventory.
+   * @param index - The index of the item to delete.
+   */
   const handleDeleteItem = useCallback(
     async (index: number) => {
       const result = await deleteInventoryItem(character.id, index)
@@ -237,6 +380,14 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
     [character.id, inventory],
   )
 
+  // --- Skill Management Handlers ---
+
+  /**
+   * Handles changing the associated ability for a skill.
+   * @param skillId - The ID of the skill to update.
+   * @param newAbility - The new ability to associate with the skill.
+   * @param e - The mouse event, to stop propagation.
+   */
   const handleSkillAbilityChange = useCallback(
     async (skillId: string, newAbility: string, e: React.MouseEvent) => {
       e.stopPropagation()
@@ -261,7 +412,10 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
     [allSkills],
   )
 
-  const activeConditions = Object.entries(localConditions).filter(([_, active]) => active)
+  const activeConditions = characterConditions.map((cond) => [
+    cond.name,
+    true,
+  ]) as Array<[string, boolean]>;
 
   return (
     <div className="space-y-6">
@@ -291,7 +445,12 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
         </TabsList>
 
         <TabsContent value="conditions">
-          <ConditionsTab conditions={localConditions} onConditionChange={handleConditionChange} />
+          <ConditionsTab
+            allGlobalConditions={allGlobalConditions}
+            characterConditions={characterConditions}
+            onConditionChange={handleConditionChange}
+            onConditionCreated={fetchAllGlobalConditions}
+          />
         </TabsContent>
 
         <TabsContent value="skills">
@@ -361,6 +520,7 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
               : undefined
           }
           mindchipBoost={selectedSkill.type === "skill" ? selectedSkill.mindchipBoost || 0 : 0}
+          activeConditions={characterConditions}
           abilityName={selectedSkill.ability || ""}
         />
       )}

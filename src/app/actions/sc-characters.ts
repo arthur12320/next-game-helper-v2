@@ -85,6 +85,12 @@ const DEFAULT_SKILLS: Record<string, number> = {
   "Battle Dress": 0,
 };
 
+/**
+ * Creates a new Special Circumstances character for the authenticated user.
+ * Initializes the character with default values if not provided.
+ * @param characterData - Partial data for the new character.
+ * @returns An object with the success status and the created character, or an error message.
+ */
 export async function createSCCharacter(
   characterData: Partial<NewSCCharacter>
 ) {
@@ -126,6 +132,11 @@ export async function createSCCharacter(
   }
 }
 
+
+/**
+ * Fetches all Special Circumstances characters for the authenticated user.
+ * @returns A list of characters, or an empty list if an error occurs.
+ */
 export async function fetchSCCharacters() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -145,6 +156,12 @@ export async function fetchSCCharacters() {
   }
 }
 
+
+/**
+ * Fetches a single Special Circumstances character by its ID.
+ * @param characterId - The ID of the character to fetch.
+ * @returns The character object, or null if not found or an error occurs.
+ */
 export async function fetchSCCharacter(characterId: string) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -164,6 +181,13 @@ export async function fetchSCCharacter(characterId: string) {
   }
 }
 
+
+/**
+ * Updates a Special Circumstances character with new data.
+ * @param characterId - The ID of the character to update.
+ * @param updates - An object with the fields to update.
+ * @returns An object with the success status and the updated character, or an error message.
+ */
 export async function updateSCCharacter(
   characterId: string,
   updates: Partial<SCCharacter>
@@ -192,6 +216,12 @@ export async function updateSCCharacter(
   }
 }
 
+
+/**
+ * Deletes a Special Circumstances character.
+ * @param characterId - The ID of the character to delete.
+ * @returns An object with the success status, or an error message.
+ */
 export async function deleteSCCharacter(characterId: string) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -210,47 +240,14 @@ export async function deleteSCCharacter(characterId: string) {
 }
 
 // Play mode actions for updating conditions and abilities
-export async function updateSCCondition(
-  characterId: string,
-  condition: keyof SCCharacter["conditions"],
-  value: boolean
-) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { success: false, error: "Unauthorized" };
-  }
 
-  try {
-    const [character] = await db
-      .select()
-      .from(scCharacters)
-      .where(eq(scCharacters.id, characterId));
-
-    if (!character) {
-      return { success: false, error: "Character not found" };
-    }
-
-    const updatedConditions = {
-      ...character.conditions,
-      [condition]: value,
-    };
-
-    await db
-      .update(scCharacters)
-      .set({
-        conditions: updatedConditions,
-        updatedAt: new Date(),
-      })
-      .where(eq(scCharacters.id, characterId));
-
-    revalidatePath(`/sc-characters/${characterId}/play`);
-    return { success: true };
-  } catch (error) {
-    console.error("Error updating condition:", error);
-    return { success: false, error: "Failed to update condition" };
-  }
-}
-
+/**
+ * Updates a specific ability score for a character.
+ * @param characterId - The ID of the character.
+ * @param ability - The name of the ability to update.
+ * @param value - The new value for the ability.
+ * @returns An object with the success status, or an error message.
+ */
 export async function updateSCAbility(
   characterId: string,
   ability: keyof SCCharacter["abilities"],
@@ -292,6 +289,14 @@ export async function updateSCAbility(
   }
 }
 
+
+/**
+ * Records the result of a skill test and handles skill advancement.
+ * @param characterId - The ID of the character.
+ * @param skillId - The ID of the skill being tested.
+ * @param success - Whether the test was a success or failure.
+ * @returns An object with the success status, the updated skill test data, and advancement details.
+ */
 export async function recordSkillTest(
   characterId: string,
   skillId: string,
@@ -396,6 +401,15 @@ export async function recordSkillTest(
   }
 }
 
+
+/**
+ * Manually updates the success and failure counts for a skill test.
+ * @param characterId - The ID of the character.
+ * @param skillId - The ID of the skill.
+ * @param successes - The new number of successes.
+ * @param failures - The new number of failures.
+ * @returns An object with the success status, or an error message.
+ */
 export async function updateSkillTest(
   characterId: string,
   skillId: string,
@@ -442,6 +456,14 @@ export async function updateSkillTest(
   }
 }
 
+
+/**
+ * Manually sets the level of a skill and resets its test counts.
+ * @param characterId - The ID of the character.
+ * @param skillId - The ID of the skill.
+ * @param newLevel - The new level for the skill.
+ * @returns An object with the success status, or an error message.
+ */
 export async function updateSCSkillLevel(
   characterId: string,
   skillId: string,
@@ -492,6 +514,13 @@ export async function updateSCSkillLevel(
 }
 
 // Play mode actions for updating abilities and their tests
+/**
+ * Records the result of an ability test and handles ability advancement.
+ * @param characterId - The ID of the character.
+ * @param ability - The name of the ability being tested.
+ * @param success - Whether the test was a success or failure.
+ * @returns An object with the success status, the updated ability test data, and advancement details.
+ */
 export async function recordAbilityTest(
   characterId: string,
   ability: string,
@@ -571,6 +600,15 @@ export async function recordAbilityTest(
   }
 }
 
+
+/**
+ * Manually updates the success and failure counts for an ability test.
+ * @param characterId - The ID of the character.
+ * @param ability - The name of the ability.
+ * @param successes - The new number of successes.
+ * @param failures - The new number of failures.
+ * @returns An object with the success status, or an error message.
+ */
 export async function updateAbilityTest(
   characterId: string,
   ability: string,
@@ -617,6 +655,14 @@ export async function updateAbilityTest(
   }
 }
 
+
+/**
+ * Manually sets the level of an ability and resets its test counts.
+ * @param characterId - The ID of the character.
+ * @param ability - The name of the ability.
+ * @param newLevel - The new level for the ability.
+ * @returns An object with the success status, or an error message.
+ */
 export async function updateSCAbilityLevel(
   characterId: string,
   ability: string,
@@ -667,6 +713,12 @@ export async function updateSCAbilityLevel(
 }
 
 // Inventory management actions
+/**
+ * Adds an item to a character's inventory.
+ * @param characterId - The ID of the character.
+ * @param itemName - The name of the item to add.
+ * @returns An object with the success status, or an error message.
+ */
 export async function addInventoryItem(characterId: string, itemName: string) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -702,6 +754,14 @@ export async function addInventoryItem(characterId: string, itemName: string) {
   }
 }
 
+
+/**
+ * Updates an item in a character's inventory.
+ * @param characterId - The ID of the character.
+ * @param index - The index of the item to update.
+ * @param newName - The new name for the item.
+ * @returns An object with the success status, or an error message.
+ */
 export async function updateInventoryItem(
   characterId: string,
   index: number,
@@ -742,6 +802,13 @@ export async function updateInventoryItem(
   }
 }
 
+
+/**
+ * Deletes an item from a character's inventory.
+ * @param characterId - The ID of the character.
+ * @param index - The index of the item to delete.
+ * @returns An object with the success status, or an error message.
+ */
 export async function deleteInventoryItem(characterId: string, index: number) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -778,6 +845,12 @@ export async function deleteInventoryItem(characterId: string, index: number) {
 }
 
 // Custom skill management actions
+/**
+ * Adds a new custom skill to a character.
+ * @param characterId - The ID of the character.
+ * @param skillName - The name of the new skill.
+ * @returns An object with the success status, or an error message.
+ */
 export async function addCustomSkill(characterId: string, skillName: string) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -819,6 +892,14 @@ export async function addCustomSkill(characterId: string, skillName: string) {
   }
 }
 
+
+/**
+ * Updates the name of a custom skill and transfers its test history.
+ * @param characterId - The ID of the character.
+ * @param oldSkillName - The current name of the skill.
+ * @param newSkillName - The new name for the skill.
+ * @returns An object with the success status, or an error message.
+ */
 export async function updateCustomSkill(
   characterId: string,
   oldSkillName: string,
@@ -873,6 +954,13 @@ export async function updateCustomSkill(
   }
 }
 
+
+/**
+ * Deletes a custom skill and its associated test history.
+ * @param characterId - The ID of the character.
+ * @param skillName - The name of the skill to delete.
+ * @returns An object with the success status, or an error message.
+ */
 export async function deleteCustomSkill(
   characterId: string,
   skillName: string
@@ -918,6 +1006,14 @@ export async function deleteCustomSkill(
 }
 
 // Mindchip boost management actions
+/**
+ * Updates or removes a Mindchip boost for a specific skill.
+ * Validates that the total boosts do not exceed the character's Mindchip level.
+ * @param characterId - The ID of the character.
+ * @param skillName - The name of the skill to boost.
+ * @param boostAmount - The amount to boost the skill by (0 to remove).
+ * @returns An object with the success status and the total boosts used, or an error message.
+ */
 export async function updateMindchipBoost(characterId: string, skillName: string, boostAmount: number) {
   const session = await auth()
   if (!session?.user?.id) {

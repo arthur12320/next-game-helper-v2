@@ -8,12 +8,15 @@ import { recordSkillTest, recordAbilityTest } from "@/app/actions/sc-characters"
 import { toast } from "sonner"
 import { Progress } from "@/components/ui/progress"
 
+import { GlobalCondition } from "@/db/schema/conditions";
+
 interface SkillRollModalProps {
   isOpen: boolean
   onClose: () => void
   skillName: string
   skillValue: number
   characterId: string
+  activeConditions: GlobalCondition[]
   skillTests?: { successes: number; failures: number }
   type?: "skill" | "ability"
   abilityValue?: number
@@ -22,12 +25,22 @@ interface SkillRollModalProps {
   abilityName?: string
 }
 
+import { Badge } from "@/components/ui/badge"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+
+/**
+ * A modal dialog for performing and recording skill or ability tests.
+ * It displays the effective roll level, active conditions, and progress towards advancement.
+ * Users can record successes or failures, which are persisted to the database.
+ * @param {SkillRollModalProps} props - The props for the component.
+ */
 export function SkillRollModal({
   isOpen,
   onClose,
   skillName,
   skillValue,
   characterId,
+  activeConditions,
   skillTests,
   type = "skill",
   abilityValue = 3,
@@ -35,13 +48,25 @@ export function SkillRollModal({
   mindchipBoost = 0,
   abilityName,
 }: SkillRollModalProps) {
-  // State management
+  // --- State Management ---
+  // Tracks if a test result is currently being saved to the database.
   const [recording, setRecording] = useState(false)
+  // Stores the outcome of the latest test ('success' or 'fail').
   const [result, setResult] = useState<"success" | "fail" | null>(null)
+  // Local state for skill/ability test counts, used for optimistic updates.
   const [localTests, setLocalTests] = useState(skillTests || { successes: 0, failures: 0 })
+  // Tracks if the character has leveled up as a result of the test.
   const [leveledUp, setLeveledUp] = useState(false)
 
-  // Handle recording test result (success or fail)
+
+  // --- Event Handlers ---
+
+  /**
+   * Records the result of a skill or ability test.
+   * It sets the recording state, calls the appropriate server action,
+   * and updates the local state with the new test counts and level-up status.
+   * @param isSuccess - Whether the test was a success or a failure.
+   */
   const handleRecordResult = async (isSuccess: boolean) => {
     setRecording(true)
     setResult(isSuccess ? "success" : "fail")
@@ -73,7 +98,9 @@ export function SkillRollModal({
     setRecording(false)
   }
 
-  // Reset state and close modal
+  /**
+   * Resets the modal's state and calls the onClose callback.
+   */
   const handleClose = () => {
     setResult(null)
     setRecording(false)
@@ -81,18 +108,31 @@ export function SkillRollModal({
     onClose()
   }
 
+  // --- Derived State and Calculations ---
+
+  // Determines if the skill is at level 0 and not boosted by Mindchip.
   const isLearning = skillValue === 0 && mindchipBoost === 0
+  // The effective level to be used for the roll.
   const effectiveRollLevel = isLearning ? abilityValue : skillValue + mindchipBoost
+  // Determines if the roll is using the base ability due to the skill being untrained.
   const usingAbility = isLearning && type === "skill"
 
+  // Calculates the number of tests required to learn a skill from level 0.
   const requiredLearningTests = isLearning ? 6 - abilityValue : 0
+  // The current progress towards learning the skill.
   const learningProgress = localTests.successes + localTests.failures
+  // The learning progress as a percentage.
   const learningTestProgress = isLearning ? Math.min((learningProgress / requiredLearningTests) * 100, 100) : 0
 
+  // The number of successes required to advance to the next level.
   const requiredSuccesses = skillValue
+  // The number of failures required to advance to the next level.
   const requiredFailures = Math.floor(skillValue / 2)
+  // The progress towards the required successes as a percentage.
   const successProgress = Math.min((localTests.successes / requiredSuccesses) * 100, 100)
+  // The progress towards the required failures as a percentage.
   const failureProgress = Math.min((localTests.failures / requiredFailures) * 100, 100)
+  // Determines if the character has met the requirements to advance the skill.
   const canAdvance = localTests.successes >= requiredSuccesses && localTests.failures >= requiredFailures
 
   return (
@@ -123,6 +163,35 @@ export function SkillRollModal({
             )}
           </div>
         </div>
+
+        {activeConditions.length > 0 && (
+          <div className="border-2 rounded-lg p-4 bg-destructive/10 border-destructive/20 text-center">
+            <div className="text-sm text-destructive font-bold mb-2">Active Conditions</div>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {activeConditions.map((condition) => (
+                <Popover key={condition.id}>
+                  <PopoverTrigger asChild>
+                    <Badge variant="destructive">
+                      {condition.name}
+                    </Badge>
+                  </PopoverTrigger>
+                  {condition.description && (
+                    <PopoverContent className="w-80">
+                      <div className="grid gap-4">
+                        <div className="space-y-2">
+                          <h4 className="font-medium leading-none">{condition.name}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {condition.description}
+                          </p>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  )}
+                </Popover>
+              ))}
+            </div>
+          </div>
+        )}
 
         {!result && !recording && (
           <>
