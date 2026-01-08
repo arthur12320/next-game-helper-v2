@@ -1,16 +1,11 @@
 "use client"
 
 import type React from "react"
-import { useState, useMemo } from "react"
+import {  useMemo } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Dices, Settings, Plus, Loader2 } from "lucide-react"
+import { Dices, Settings, Loader2 } from "lucide-react"
 import { SkillItem } from "./SkillItem"
-import { createSkill } from "@/app/actions/sc-skills"
-import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { SCSkill } from "@/db/schema/sc-skills"
 
@@ -45,11 +40,7 @@ export function SkillsTab({
   onAbilityChange,
   onMindchipBoostChange,
 }: SkillsTabProps) {
-  const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const [newSkillName, setNewSkillName] = useState("")
-  const [newSkillAbility, setNewSkillAbility] = useState("")
-  const [newSkillCategory, setNewSkillCategory] = useState("")
-  const [isCreating, setIsCreating] = useState(false)
+
 
   const totalBoostsUsed = Object.values(mindchipBoosts).reduce((sum, val) => sum + val, 0)
   const mindchipAvailable = mindchipLevel - totalBoostsUsed
@@ -77,32 +68,7 @@ export function SkillsTab({
     return categories
   }, [untrainedSkills])
 
-  const handleCreateSkill = async () => {
-    if (!newSkillName.trim() || !newSkillAbility || !newSkillCategory) {
-      toast.error("Error", { description: "Please fill in all fields" })
-      return
-    }
 
-    setIsCreating(true)
-    const result = await createSkill({
-      name: newSkillName.trim(),
-      ability: newSkillAbility,
-      category: newSkillCategory,
-    })
-
-    if (result.success) {
-      toast("Skill Created", { description: `${newSkillName} is now available to all users` })
-      setNewSkillName("")
-      setNewSkillAbility("")
-      setNewSkillCategory("")
-      setCreateDialogOpen(false)
-      // Refresh the page to show the new skill
-      window.location.reload()
-    } else {
-      toast.error("Error", { description: result.error || "Failed to create skill" })
-    }
-    setIsCreating(false)
-  }
 
   if (skillsLoading) {
     return (
@@ -134,62 +100,6 @@ export function SkillsTab({
             )}
           </div>
           <div className="flex gap-2">
-            <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2 bg-transparent">
-                  <Plus className="h-4 w-4" />
-                  New Skill
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create New Skill</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Skill Name</label>
-                    <Input
-                      value={newSkillName}
-                      onChange={(e) => setNewSkillName(e.target.value)}
-                      placeholder="e.g., Engineering"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Associated Ability</label>
-                    <Select value={newSkillAbility} onValueChange={setNewSkillAbility}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select ability" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Will">Will</SelectItem>
-                        <SelectItem value="Health">Health</SelectItem>
-                        <SelectItem value="Resources">Resources</SelectItem>
-                        <SelectItem value="Circles">Circles</SelectItem>
-                        <SelectItem value="Mindchip">Mindchip</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Category</label>
-                    <Select value={newSkillCategory} onValueChange={setNewSkillCategory}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Crafting">Crafting</SelectItem>
-                        <SelectItem value="Exploration">Exploration</SelectItem>
-                        <SelectItem value="Social">Social</SelectItem>
-                        <SelectItem value="Lore">Lore</SelectItem>
-                        <SelectItem value="Combat">Combat</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button onClick={handleCreateSkill} disabled={isCreating} className="w-full">
-                    {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Skill"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
 
             <Button variant={editMode ? "default" : "outline"} size="sm" onClick={onEditModeToggle} className="gap-2">
               <Settings className="h-4 w-4" />

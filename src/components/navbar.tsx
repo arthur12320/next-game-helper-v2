@@ -28,6 +28,8 @@ export default async function Navbar() {
     { name: "Assets", href: "/assets" },
     { name: "Maps", href: "/maps" },
     { name: "Character SC", href: "/sc-characters" },
+    { name: "Skills", href: "/skills" },
+    { name: "Conditions", href: "/conditions" },
   ];
 
   return (
