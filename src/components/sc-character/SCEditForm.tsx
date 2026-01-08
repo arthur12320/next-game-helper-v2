@@ -1,15 +1,14 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { updateSCCharacter, deleteSCCharacter } from "@/app/actions/sc-characters"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,8 +21,15 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Trash2 } from "lucide-react"
+import { updateSCCharacter, deleteSCCharacter } from "@/app/actions/sc-characters"
 import { SCCharacter } from "@/db/schema/sc-character"
 import { toast } from "sonner"
+import { HomeworldStep } from "./HomeworldStep"
+import { UpbringingStep } from "./UpbringingStep"
+import { LifepathsStep } from "./LifepathsStep"
+import { ConnectionsStep } from "./ConnectionsStep"
+import { AbilitiesStep } from "./AbilitiesStep"
+import { SkillsStep } from "./SkillsStep"
 
 interface SCEditFormProps {
   character: SCCharacter
@@ -33,40 +39,29 @@ export function SCEditForm({ character }: SCEditFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [characterData, setCharacterData] = useState<SCCharacter>(character)
 
-  const [formData, setFormData] = useState({
-    name: character.name,
-    pronouns: character.pronouns || "",
-    concept: character.concept || "",
-    homeworld: character.homeworld || "",
-    upbringing: character.upbringing || "",
-    beliefs: character.beliefs || "",
-    instincts: character.instincts || "",
-    goals: character.goals || "",
-  })
+  const handleUpdate = useCallback((updates: Partial<SCCharacter>) => {
+    setCharacterData((prev) => ({ ...prev, ...updates }))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
 
     try {
-      const result = await updateSCCharacter(character.id, formData)
+      const result = await updateSCCharacter(character.id, characterData)
 
       if (result.success) {
-        toast("Agent Updated",{
-          description: "Changes saved successfully",
-        })
-        router.push(`/sc-characters/${character.id}/play`)
+        toast("Agent Updated", { description: "Changes saved successfully" })
+        // router.push(`/sc-characters/${character.id}/play`)
+        // router.refresh()
       } else {
-        toast.error("Error",{
-          description: result.error || "Failed to update agent",
-        })
+        toast.error("Error", { description: result.error || "Failed to update agent" })
       }
     } catch (error) {
       console.log(error)
-      toast.error("Error",{
-        description: "An unexpected error occurred",
-      })
+      toast.error("Error", { description: "An unexpected error occurred" })
     } finally {
       setIsSubmitting(false)
     }
@@ -74,25 +69,18 @@ export function SCEditForm({ character }: SCEditFormProps) {
 
   const handleDelete = async () => {
     setIsDeleting(true)
-
     try {
       const result = await deleteSCCharacter(character.id)
-
       if (result.success) {
-        toast("Agent Deleted",{
-          description: "Agent has been removed",
-        })
+        toast("Agent Deleted", { description: "The agent has been permanently removed." })
         router.push("/sc-characters")
+        router.refresh()
       } else {
-        toast.error("Error",{
-          description: result.error || "Failed to delete agent",
-        })
+        toast.error("Error", { description: result.error || "Failed to delete agent." })
       }
     } catch (error) {
       console.log(error)
-      toast.error("Error",{
-        description: "An unexpected error occurred",
-      })
+      toast.error("Error", { description: "An unexpected error occurred during deletion." })
     } finally {
       setIsDeleting(false)
     }
@@ -100,104 +88,101 @@ export function SCEditForm({ character }: SCEditFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <Badge variant="outline" className="mb-4 w-fit">Beta Feature</Badge>
-      <Card>
-        <CardHeader>
-          <CardTitle>Basic Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Name *</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-            />
-          </div>
+      <Tabs defaultValue="general" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="background">Background</TabsTrigger>
+          <TabsTrigger value="abilities">Abilities</TabsTrigger>
+          <TabsTrigger value="skills">Skills</TabsTrigger>
+        </TabsList>
 
-          <div className="space-y-2">
-            <Label htmlFor="pronouns">Pronouns</Label>
-            <Input
-              id="pronouns"
-              value={formData.pronouns}
-              onChange={(e) => setFormData({ ...formData, pronouns: e.target.value })}
-            />
-          </div>
+        <TabsContent value="general" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Basic Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Name *</Label>
+                <Input
+                  id="name"
+                  value={characterData.name}
+                  onChange={(e) => handleUpdate({ name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pronouns">Pronouns</Label>
+                <Input
+                  id="pronouns"
+                  value={characterData.pronouns || ""}
+                  onChange={(e) => handleUpdate({ pronouns: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="concept">Concept</Label>
+                <Textarea
+                  id="concept"
+                  value={characterData.concept || ""}
+                  onChange={(e) => handleUpdate({ concept: e.target.value })}
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Character Development</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="beliefs">Beliefs</Label>
+                <Textarea
+                  id="beliefs"
+                  value={characterData.beliefs || ""}
+                  onChange={(e) => handleUpdate({ beliefs: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="instincts">Instincts</Label>
+                <Textarea
+                  id="instincts"
+                  value={characterData.instincts || ""}
+                  onChange={(e) => handleUpdate({ instincts: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="goals">Goals</Label>
+                <Textarea
+                  id="goals"
+                  value={characterData.goals || ""}
+                  onChange={(e) => handleUpdate({ goals: e.target.value })}
+                  rows={3}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          <div className="space-y-2">
-            <Label htmlFor="concept">Concept</Label>
-            <Textarea
-              id="concept"
-              value={formData.concept}
-              onChange={(e) => setFormData({ ...formData, concept: e.target.value })}
-              rows={3}
-            />
+        <TabsContent value="background" className="mt-6">
+          <div className="space-y-6">
+            <HomeworldStep data={characterData} onUpdate={handleUpdate} />
+            <UpbringingStep data={characterData} onUpdate={handleUpdate} />
+            <LifepathsStep data={characterData} onUpdate={handleUpdate} />
+            <ConnectionsStep data={characterData} onUpdate={handleUpdate} />
           </div>
-        </CardContent>
-      </Card>
+        </TabsContent>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Background</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="homeworld">Homeworld</Label>
-            <Input
-              id="homeworld"
-              value={formData.homeworld}
-              onChange={(e) => setFormData({ ...formData, homeworld: e.target.value })}
-            />
-          </div>
+        <TabsContent value="abilities" className="mt-6">
+          <AbilitiesStep data={characterData} onUpdate={handleUpdate} />
+        </TabsContent>
 
-          <div className="space-y-2">
-            <Label htmlFor="upbringing">Upbringing</Label>
-            <Input
-              id="upbringing"
-              value={formData.upbringing}
-              onChange={(e) => setFormData({ ...formData, upbringing: e.target.value })}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Character Development</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="beliefs">Beliefs</Label>
-            <Textarea
-              id="beliefs"
-              value={formData.beliefs}
-              onChange={(e) => setFormData({ ...formData, beliefs: e.target.value })}
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="instincts">Instincts</Label>
-            <Textarea
-              id="instincts"
-              value={formData.instincts}
-              onChange={(e) => setFormData({ ...formData, instincts: e.target.value })}
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="goals">Goals</Label>
-            <Textarea
-              id="goals"
-              value={formData.goals}
-              onChange={(e) => setFormData({ ...formData, goals: e.target.value })}
-              rows={3}
-            />
-          </div>
-        </CardContent>
-      </Card>
+        <TabsContent value="skills" className="mt-6">
+          <SkillsStep data={characterData} onUpdate={handleUpdate} />
+        </TabsContent>
+      </Tabs>
 
       <div className="flex justify-between items-center pt-4">
         <AlertDialog>
@@ -216,13 +201,12 @@ export function SCEditForm({ character }: SCEditFormProps) {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                Delete
+              <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                {isDeleting ? "Deleting..." : "Delete"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Saving..." : "Save Changes"}
         </Button>

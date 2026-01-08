@@ -1,15 +1,42 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client"
 
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { SCCharacter } from "@/db/schema/sc-character"
+import { getAllSkills } from "@/app/actions/sc-skills"
+import { SCSkill } from "@/db/schema/sc-skills"
+import { Skeleton } from "../ui/skeleton"
 
 interface FinalizeStepProps {
   data: Partial<SCCharacter>
 }
 
 export function FinalizeStep({ data }: FinalizeStepProps) {
+  const [skills, setSkills] = useState<SCSkill[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    async function fetchSkills() {
+      setIsLoading(true)
+      const { skills: fetchedSkills, success } = await getAllSkills()
+      if (success && fetchedSkills) {
+        setSkills(fetchedSkills)
+      }
+      setIsLoading(false)
+    }
+    fetchSkills()
+  }, [])
+
+  const skillIdToNameMap = skills.reduce(
+    (acc, skill) => {
+      acc[skill.id] = skill.name
+      return acc
+    },
+    {} as Record<string, string>
+  )
+
   const topSkills = Object.entries(data.skills || {})
     .filter(([_, value]) => value > 0)
     .sort(([_, a], [__, b]) => b - a)
@@ -63,13 +90,21 @@ export function FinalizeStep({ data }: FinalizeStepProps) {
             <CardTitle>Top Skills</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {topSkills.map(([skill, value]) => (
-                <Badge key={skill} variant="secondary">
-                  {skill}: {value}
-                </Badge>
-              ))}
-            </div>
+            {isLoading ? (
+              <div className="flex flex-wrap gap-2">
+                {Array.from({ length: topSkills.length }).map((_, i) => (
+                  <Skeleton key={i} className="h-6 w-24 rounded-full" />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {topSkills.map(([skillId, value]) => (
+                  <Badge key={skillId} variant="secondary">
+                    {skillIdToNameMap[skillId] || skillId}: {value}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -83,13 +118,13 @@ export function FinalizeStep({ data }: FinalizeStepProps) {
             {data.homeworld && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Homeworld:</span>
-                <span>{data.homeworld}</span>
+                <span>{data.homeworld.name}</span>
               </div>
             )}
             {data.upbringing && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Upbringing:</span>
-                <span>{data.upbringing}</span>
+                <span>{data.upbringing.name}</span>
               </div>
             )}
           </CardContent>

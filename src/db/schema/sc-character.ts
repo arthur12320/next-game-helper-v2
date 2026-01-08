@@ -31,8 +31,8 @@ export const scCharacters = pgTable("sc_characters", {
       Mindchip: number
     }>()
     .default({
-      Will: 3,
-      Health: 5,
+      Will: 1,
+      Health: 1,
       Resources: 1,
       Circles: 1,
       Mindchip: 1,
@@ -56,9 +56,26 @@ export const scCharacters = pgTable("sc_characters", {
   // Stores pairs of traits that define the character's personality and approach.
   traitPairs: jsonb("trait_pairs").$type<Array<{ trait1: string; trait2: string }>>().default([]),
 
-  homeworld: text("homeworld").default(""),
-  upbringing: text("upbringing").default(""),
-  lifepaths: jsonb("lifepaths").$type<string[]>().default([]),
+  homeworld: jsonb("homeworld").$type<{ name: string; promptAnswer: string }>().default({ name: "", promptAnswer: "" }),
+  upbringing: jsonb("upbringing").$type<{ name: string; promptAnswer: string }>().default({ name: "", promptAnswer: "" }),
+  lifepaths: jsonb("lifepaths")
+    .$type<
+      {
+        name: string
+        promptAnswer: string
+        traits: { trait1: string; trait2: string }
+      }[]
+    >()
+    .default([]),
+  connections: jsonb("connections")
+    .$type<
+      {
+        characterId: string
+        characterName: string
+        description: string
+      }[]
+    >()
+    .default([]),
 
   // --- Character Development ---
   beliefs: text("beliefs").default(""),

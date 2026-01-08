@@ -4,15 +4,94 @@ import { useState, useMemo, useEffect } from "react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+
 import { SCCharacter } from "@/db/schema/sc-character"
 import { SCSkill } from "@/db/schema/sc-skills"
 import { getAllSkills } from "@/app/actions/sc-skills"
+import { lifepaths as allLifepaths } from "@/lib/character-data"
+
+const UNRESTRICTED_POINTS = 5 // 2 from homeworld, 3 from upbringing
 
 interface SkillsStepProps {
   data: Partial<SCCharacter>
   onUpdate: (updates: Partial<SCCharacter>) => void
+}
+
+function LifepathSkills({
+  lifepath,
+  skillsData,
+  allSkills,
+  onSkillChange,
+}: {
+  lifepath: NonNullable<SCCharacter["lifepaths"]>[0]
+  skillsData: Record<string, number> // skillName -> level
+  allSkills: SCSkill[]
+  onSkillChange: (skillId: string, value: number) => void
+}) {
+  const lifepathDetails = allLifepaths.find(lp => lp.name === lifepath.name)
+  if (!lifepathDetails) return null
+
+  const lifepathSkills = allSkills.filter(s =>
+    lifepathDetails.skills.includes(s.name)
+  )
+
+  const pointsSpent = lifepathSkills.reduce(
+    (acc, skill) => acc + (skillsData[skill.name] || 0),
+    0
+  )
+
+  const pointsRemaining = 3 - pointsSpent
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">{lifepath.name} Skills</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          You have {pointsRemaining} points to spend on these skills.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {lifepathSkills.map(skill => (
+          <div key={skill.id} className="flex items-center justify-between">
+            <Label>{skill.name}</Label>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() =>
+                  onSkillChange(skill.id, (skillsData[skill.name] || 0) - 1)
+                }
+                disabled={(skillsData[skill.name] || 0) <= 0}
+              >
+                -
+              </Button>
+              <Input
+                type="number"
+                readOnly
+                value={skillsData[skill.name] || 0}
+                className="w-12 text-center"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() =>
+                  onSkillChange(skill.id, (skillsData[skill.name] || 0) + 1)
+                }
+                disabled={pointsRemaining <= 0}
+              >
+                +
+              </Button>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
 }
 
 export function SkillsStep({ data, onUpdate }: SkillsStepProps) {
@@ -31,108 +110,202 @@ export function SkillsStep({ data, onUpdate }: SkillsStepProps) {
     fetchSkills()
   }, [])
 
-  const skills = useMemo(() => {
-    if (data.skills && Object.keys(data.skills).length > 0) {
-      return data.skills
-    }
-    return {}
-  }, [data.skills])
+  const skills = data.skills || {} // skillName -> level
 
-  const handleSkillChange = (skillId: string, value: string) => {
-    const numValue = Number.parseInt(value) || 0
+  const getSkillNameById = (skillId: string) =>
+    allSkills.find(s => s.id === skillId)?.name
+
+  const { restrictedSkillNames } = useMemo(() => {
+    const names = new Set<string>()
+
+    data.lifepaths?.forEach(lp => {
+      const details = allLifepaths.find(d => d.name === lp.name)
+      if (!details) return
+
+      details.skills.forEach(skillName => {
+        names.add(skillName)
+      })
+    })
+
+    return { restrictedSkillNames: names }
+  }, [data.lifepaths])
+
+  const unrestrictedPointsSpent = useMemo(() => {
+    return Object.entries(skills).reduce((acc, [skillName, value]) => {
+      if (!restrictedSkillNames.has(skillName)) {
+        return acc + value
+      }
+      return acc
+    }, 0)
+  }, [skills, restrictedSkillNames])
+
+  const unrestrictedPointsRemaining =
+    UNRESTRICTED_POINTS - unrestrictedPointsSpent
+
+  const handleSkillChange = (skillId: string, value: number) => {
+    const skillName = getSkillNameById(skillId)
+    if (!skillName) return
+
+    const clampedValue = Math.max(0, value)
+
     onUpdate({
       skills: {
         ...skills,
-        [skillId]: numValue,
+        [skillName]: clampedValue,
       },
     })
   }
 
   const skillsByCategory = useMemo(() => {
-    return allSkills.reduce(
-      (acc, skill) => {
-        if (!acc[skill.category]) {
-          acc[skill.category] = []
-        }
-        acc[skill.category].push(skill)
-        return acc
-      },
-      {} as Record<string, SCSkill[]>,
+    const generalSkills = allSkills.filter(
+      s => !restrictedSkillNames.has(s.name)
     )
-  }, [allSkills])
 
-  const filteredCategories = useMemo(() => {
+    return generalSkills.reduce((acc, skill) => {
+      if (!acc[skill.category]) acc[skill.category] = []
+      acc[skill.category].push(skill)
+      return acc
+    }, {} as Record<string, SCSkill[]>)
+  }, [allSkills, restrictedSkillNames])
+
+  const filteredSkillsByCategory = useMemo(() => {
     if (!searchTerm) return skillsByCategory
 
     const filtered: Record<string, SCSkill[]> = {}
-    Object.entries(skillsByCategory).forEach(([category, categorySkills]) => {
-      const matchingSkills = categorySkills.filter((skill) =>
-        skill.name.toLowerCase().includes(searchTerm.toLowerCase()),
+
+    for (const category in skillsByCategory) {
+      const matches = skillsByCategory[category].filter(skill =>
+        skill.name.toLowerCase().includes(searchTerm.toLowerCase())
       )
-      if (matchingSkills.length > 0) {
-        filtered[category] = matchingSkills
+
+      if (matches.length > 0) {
+        filtered[category] = matches
       }
-    })
+    }
+
     return filtered
-  }, [searchTerm, skillsByCategory])
+  }, [skillsByCategory, searchTerm])
+
+  const defaultTab = Object.keys(filteredSkillsByCategory)[0]
 
   if (isLoading) {
-    return <div className="text-center py-8 text-muted-foreground">Loading skills...</div>
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        Loading skills...
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="skill-search">Search Skills</Label>
-        <Input
-          id="skill-search"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Type to filter skills..."
-        />
+    <div className="space-y-6">
+      <div className="grid gap-6 md:grid-cols-2">
+        {data.lifepaths?.map(lp => (
+          <LifepathSkills
+            key={lp.name}
+            lifepath={lp}
+            skillsData={skills}
+            allSkills={allSkills}
+            onSkillChange={handleSkillChange}
+          />
+        ))}
       </div>
 
-      <Tabs defaultValue={Object.keys(skillsByCategory)[0]} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          {Object.keys(skillsByCategory).map((category) => (
-            <TabsTrigger key={category} value={category} className="text-xs">
-              {category}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      <Card>
+        <CardHeader>
+          <CardTitle>General Skills</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            You have {unrestrictedPointsRemaining} points to spend on any skill.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <Input
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            placeholder="Search for a skill..."
+            className="mb-4"
+          />
 
-        {Object.entries(filteredCategories).map(([category, categorySkills]) => (
-          <TabsContent key={category} value={category} className="space-y-2 mt-4">
-            <div className="grid grid-cols-2 gap-3">
-              {categorySkills.map((skill) => (
-                <Card key={skill.id}>
-                  <CardContent className="p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <Label htmlFor={skill.id} className="text-sm block mb-1">
-                          {skill.name}
-                        </Label>
-                        <Badge variant="outline" className="text-xs">
-                          {skill.ability}
-                        </Badge>
-                      </div>
-                      <Input
-                        id={skill.id}
-                        type="number"
-                        min="0"
-                        max="10"
-                        value={skills[skill.id] || 0}
-                        onChange={(e) => handleSkillChange(skill.id, e.target.value)}
-                        className="w-16 text-center"
-                      />
+          {defaultTab ? (
+            <Tabs defaultValue={defaultTab}>
+              <TabsList className="grid w-full grid-cols-3 md:grid-cols-5">
+                {Object.keys(filteredSkillsByCategory).map(cat => (
+                  <TabsTrigger key={cat} value={cat} className="text-xs">
+                    {cat}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+
+              {Object.entries(filteredSkillsByCategory).map(
+                ([cat, catSkills]) => (
+                  <TabsContent key={cat} value={cat} className="mt-4">
+                    <div className="space-y-3">
+                      {catSkills.map(skill => (
+                        <div
+                          key={skill.id}
+                          className="flex items-center justify-between"
+                        >
+                          <div className="flex flex-col">
+                            <Label className="text-sm">{skill.name}</Label>
+                            <Badge
+                              variant="outline"
+                              className="text-xs w-fit mt-1"
+                            >
+                              {skill.ability}
+                            </Badge>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() =>
+                                handleSkillChange(
+                                  skill.id,
+                                  (skills[skill.name] || 0) - 1
+                                )
+                              }
+                              disabled={(skills[skill.name] || 0) <= 0}
+                            >
+                              -
+                            </Button>
+
+                            <Input
+                              type="number"
+                              readOnly
+                              value={skills[skill.name] || 0}
+                              className="w-12 text-center"
+                            />
+
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() =>
+                                handleSkillChange(
+                                  skill.id,
+                                  (skills[skill.name] || 0) + 1
+                                )
+                              }
+                              disabled={unrestrictedPointsRemaining <= 0}
+                            >
+                              +
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  </TabsContent>
+                )
+              )}
+            </Tabs>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No skills found for &quot;{searchTerm}&quot;
             </div>
-          </TabsContent>
-        ))}
-      </Tabs>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

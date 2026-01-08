@@ -8,20 +8,26 @@ import { Progress } from "@/components/ui/progress"
 import { createSCCharacter } from "@/app/actions/sc-characters"
 import { BasicInfoStep } from "./BasicInfoStep"
 import { AbilitiesStep } from "./AbilitiesStep"
-import { BackgroundStep } from "./BackgroundStep"
 import { FinalizeStep } from "./FinalizeStep"
 import { SCCharacter } from "@/db/schema/sc-character"
 import { SkillsStep } from "./SkillsStep"
 import { toast } from "sonner"
+import { HomeworldStep } from "./HomeworldStep"
+import { UpbringingStep } from "./UpbringingStep"
+import { LifepathsStep } from "./LifepathsStep"
+import { ConnectionsStep } from "./ConnectionsStep"
 
 type CharacterData = Partial<SCCharacter>
 
 const STEPS = [
   { id: 1, title: "Basic Info", description: "Name and concept" },
-  { id: 2, title: "Abilities", description: "Core attributes" },
-  { id: 3, title: "Skills", description: "Learned capabilities" },
-  { id: 4, title: "Background", description: "History and development" },
-  { id: 5, title: "Finalize", description: "Review and create" },
+  { id: 2, title: "Homeworld", description: "Where you come from" },
+  { id: 3, title: "Upbringing", description: "How you were raised" },
+  { id: 4, title: "Lifepaths", description: "What you've done" },
+  { id: 5, title: "Connections", description: "People you know" },
+  { id: 6, title: "Abilities", description: "Core attributes" },
+  { id: 7, title: "Skills", description: "Learned capabilities" },
+  { id: 8, title: "Finalize", description: "Review and create" },
 ]
 
 export function SCCharacterCreationWizard() {
@@ -34,16 +40,18 @@ export function SCCharacterCreationWizard() {
     pronouns: "",
     concept: "",
     abilities: {
-      Will: 3,
-      Health: 5,
+      Will: 2,
+      Health: 2,
       Resources: 1,
       Circles: 1,
       Mindchip: 1,
     },
     skills: {},
-    homeworld: "",
-    upbringing: "",
+    homeworld: { name: "", promptAnswer: "" },
+    upbringing: { name: "", promptAnswer: "" },
     lifepaths: [],
+    connections: [],
+    traitPairs: [],
     beliefs: "",
     instincts: "",
     goals: "",
@@ -68,6 +76,7 @@ export function SCCharacterCreationWizard() {
   const handleSubmit = async () => {
     setIsSubmitting(true)
     try {
+      
       const result = await createSCCharacter(characterData)
 
       if (result.success && result.character) {
@@ -109,10 +118,13 @@ export function SCCharacterCreationWizard() {
         </CardHeader>
         <CardContent className="pt-6">
           {currentStep === 1 && <BasicInfoStep data={characterData} onUpdate={updateCharacterData} />}
-          {currentStep === 2 && <AbilitiesStep data={characterData} onUpdate={updateCharacterData} />}
-          {currentStep === 3 && <SkillsStep data={characterData} onUpdate={updateCharacterData} />}
-          {currentStep === 4 && <BackgroundStep data={characterData} onUpdate={updateCharacterData} />}
-          {currentStep === 5 && <FinalizeStep data={characterData} />}
+          {currentStep === 2 && <HomeworldStep data={characterData} onUpdate={updateCharacterData} />}
+          {currentStep === 3 && <UpbringingStep data={characterData} onUpdate={updateCharacterData} />}
+          {currentStep === 4 && <LifepathsStep data={characterData} onUpdate={updateCharacterData} />}
+          {currentStep === 5 && <ConnectionsStep data={characterData} onUpdate={updateCharacterData} />}
+          {currentStep === 6 && <AbilitiesStep data={characterData} onUpdate={updateCharacterData} />}
+          {currentStep === 7 && <SkillsStep data={characterData} onUpdate={updateCharacterData} />}
+          {currentStep === 8 && <FinalizeStep data={characterData} />}
         </CardContent>
       </Card>
 

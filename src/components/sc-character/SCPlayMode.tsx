@@ -490,6 +490,9 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
           <BackgroundTab
             homeworld={character.homeworld}
             upbringing={character.upbringing}
+            lifepaths={character.lifepaths}
+            connections={character.connections}
+            traitPairs={character.traitPairs}
             beliefs={character.beliefs}
             instincts={character.instincts}
             goals={character.goals}
