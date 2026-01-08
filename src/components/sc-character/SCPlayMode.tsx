@@ -449,7 +449,6 @@ export function SCPlayMode({ character, initialGlobalTokens }: SCPlayModeProps) 
             allGlobalConditions={allGlobalConditions}
             characterConditions={characterConditions}
             onConditionChange={handleConditionChange}
-            onConditionCreated={fetchAllGlobalConditions}
           />
         </TabsContent>
 
