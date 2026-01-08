@@ -100,29 +100,46 @@ export async function createSCCharacter(
   }
 
   try {
-    const [character] = await db
-      .insert(scCharacters)
-      .values({
-        userId: session.user.id,
-        name: characterData.name || "New Agent",
-        pronouns: characterData.pronouns || "",
-        concept: characterData.concept || "",
-        abilities: characterData.abilities || {
-          Will: 3,
-          Health: 5,
-          Resources: 1,
-          Circles: 1,
-          Mindchip: 1,
-        },
-        skills: characterData.skills || DEFAULT_SKILLS,
-        homeworld: characterData.homeworld || "",
-        upbringing: characterData.upbringing || "",
-        lifepaths: characterData.lifepaths || [],
-        beliefs: characterData.beliefs || "",
-        instincts: characterData.instincts || "",
-        goals: characterData.goals || "",
-      })
-      .returning();
+   const [character] = await db
+  .insert(scCharacters)
+  .values({
+    userId: session.user.id,
+
+    name: characterData.name || "New Agent",
+    pronouns: characterData.pronouns || "",
+    concept: characterData.concept || "",
+
+    abilities: characterData.abilities || {
+      Will: 3,
+      Health: 5,
+      Resources: 1,
+      Circles: 1,
+      Mindchip: 1,
+    },
+
+    skills: characterData.skills || DEFAULT_SKILLS,
+    mindchipBoosts: characterData.mindchipBoosts || {},
+
+    traitPairs: characterData.traitPairs || [],
+    abilityTests: characterData.abilityTests || {},
+    skillTests: characterData.skillTests || {},
+
+    homeworld: characterData.homeworld || { name: "", promptAnswer: "" },
+    upbringing: characterData.upbringing || { name: "", promptAnswer: "" },
+
+    lifepaths: characterData.lifepaths || [],
+    beliefs: characterData.beliefs || "",
+    instincts: characterData.instincts || "",
+    goals: characterData.goals || "",
+
+    connections: characterData.connections || [],
+    inventory: characterData.inventory || [],
+    notes: characterData.notes || "",
+
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })
+  .returning()
 
     revalidatePath("/sc-characters");
     return { success: true, character };

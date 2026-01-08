@@ -110,7 +110,7 @@ export function SkillsStep({ data, onUpdate }: SkillsStepProps) {
     fetchSkills()
   }, [])
 
-  const skills = data.skills || {} // skillName -> level
+  const skills = useMemo(() => data.skills || {}, [data.skills]) // skillName -> level
 
   const getSkillNameById = (skillId: string) =>
     allSkills.find(s => s.id === skillId)?.name
