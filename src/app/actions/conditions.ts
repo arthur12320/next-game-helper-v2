@@ -13,9 +13,9 @@ import { revalidatePath } from "next/cache";
  * @param description - A description of the condition's effects.
  * @returns An object with the success status, or an error message.
  */
-export async function createCondition(name: string, description: string) {
+export async function createCondition(name: string, description: string, recovery?: string) {
   try {
-    await db.insert(conditions).values({name, description });
+    await db.insert(conditions).values({name, description, recovery });
     revalidatePath("/conditions"); // Revalidate path for global conditions management
     return { success: true };
   } catch (error) {
@@ -35,11 +35,12 @@ export async function updateCondition(
   id: string,
   name: string,
   description: string,
+  recovery?: string,
 ) {
   try {
     await db
       .update(conditions)
-      .set({ name, description })
+      .set({ name, description, recovery })
       .where(eq(conditions.id, id));
     revalidatePath("/conditions");
     // Also revalidate character pages as this might affect their displayed conditions

@@ -67,11 +67,12 @@ export default function ConditionsPage() {
   const handleCreate = async (formData: FormData) => {
     const name = formData.get("name") as string;
     const description = formData.get("description") as string;
+    const recovery = formData.get("recovery") as string;
     if (!name) {
       toast.error("Condition name is required.");
       return;
     }
-    const result = await createCondition(name, description);
+    const result = await createCondition(name, description, recovery);
     if (result.success) {
       toast.success("Condition created successfully.");
       setOpenCreateDialog(false);
@@ -89,11 +90,12 @@ export default function ConditionsPage() {
     if (!currentCondition) return;
     const name = formData.get("name") as string;
     const description = formData.get("description") as string;
+    const recovery = formData.get("recovery") as string;
     if (!name) {
       toast.error("Condition name is required.");
       return;
     }
-    const result = await updateCondition(currentCondition.id, name, description);
+    const result = await updateCondition(currentCondition.id, name, description, recovery);
     if (result.success) {
       toast.success("Condition updated successfully.");
       setOpenEditDialog(false);
@@ -159,6 +161,16 @@ export default function ConditionsPage() {
                     className="col-span-3"
                   />
                 </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label  className="text-right">
+                    Recovery
+                  </Label>
+                  <Textarea
+                    id="recovery"
+                    name="recovery"
+                    className="col-span-3"
+                  />
+                </div>
                 <DialogFooter>
                   <Button type="submit">Create Condition</Button>
                 </DialogFooter>
@@ -179,6 +191,7 @@ export default function ConditionsPage() {
                 </CardHeader>
                 <CardContent>
                   <p>{condition.description || "No description provided."}</p>
+                  <p className="mt-2"><strong>Recovery:</strong> {condition.recovery || "No recovery information provided."}</p>
                   <div className="flex justify-end gap-2 mt-4">
                     <Dialog open={openEditDialog && currentCondition?.id === condition.id} onOpenChange={setOpenEditDialog}>
                       <DialogTrigger asChild>
@@ -226,6 +239,20 @@ export default function ConditionsPage() {
                                 name="description"
                                 className="col-span-3"
                                 defaultValue={currentCondition.description || ""}
+                              />
+                            </div>
+                            <div className="grid grid-cols-4 items-start gap-4">
+                              <Label
+                                
+                                className="text-right"
+                              >
+                                Recovery
+                              </Label>
+                              <Textarea
+                                id="edit-recovery"
+                                name="recovery"
+                                className="col-span-3"
+                                defaultValue={currentCondition.recovery || ""}
                               />
                             </div>
                             <DialogFooter>

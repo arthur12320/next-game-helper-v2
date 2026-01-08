@@ -3,6 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -99,6 +100,7 @@ export function SCEditForm({ character }: SCEditFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <Badge variant="outline" className="mb-4 w-fit">Beta Feature</Badge>
       <Card>
         <CardHeader>
           <CardTitle>Basic Information</CardTitle>

@@ -56,11 +56,12 @@ export function ConditionsTab({
   const handleCreate = async (formData: FormData) => {
     const name = formData.get("name") as string;
     const description = formData.get("description") as string;
+    const recovery = formData.get("recovery") as string;
     if (!name) {
       toast.error("Condition name is required.");
       return;
     }
-    const result = await createCondition(name, description);
+    const result = await createCondition(name, description, recovery);
     if (result.success) {
       toast.success("Condition created successfully.");
       setOpenCreateDialog(false);
@@ -104,6 +105,11 @@ export function ConditionsTab({
                       {condition.description}
                     </p>
                   )}
+                  {condition.recovery && (
+                    <p className="text-sm text-muted-foreground">
+                      <strong>Recovery:</strong> {condition.recovery}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}
@@ -136,6 +142,16 @@ export function ConditionsTab({
                 <Textarea
                   id="description"
                   name="description"
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-start gap-4">
+                <Label htmlFor="recovery" className="text-right">
+                  Recovery
+                </Label>
+                <Textarea
+                  id="recovery"
+                  name="recovery"
                   className="col-span-3"
                 />
               </div>

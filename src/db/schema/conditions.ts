@@ -9,6 +9,7 @@ export const conditions = pgTable("conditions", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 255 }).notNull().unique(),
   description: text("description"),
+  recovery: text("recovery"),
 });
 
 

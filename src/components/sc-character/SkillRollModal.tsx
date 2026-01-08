@@ -183,6 +183,11 @@ export function SkillRollModal({
                           <p className="text-sm text-muted-foreground">
                             {condition.description}
                           </p>
+                          {condition.recovery && (
+                            <p className="text-sm text-muted-foreground pt-2">
+                              <strong>Recovery:</strong> {condition.recovery}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </PopoverContent>
