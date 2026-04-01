@@ -3,7 +3,7 @@ import { auth } from "../auth";
 /**
  * An array of routes that are accessible to the public and do not require authentication.
  */
-const publicRoutes = ["/", "/conditions"];
+const publicRoutes = ["/", "/conditions","/api/sessions/events"];
 
 /**
  * An array of routes that are used for authentication purposes (e.g., login, register).
