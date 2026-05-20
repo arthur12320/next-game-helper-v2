@@ -25,6 +25,7 @@ export { scSkills } from "./sc-skills";
 export { globalTokens } from "./global-token";
 export { conditions } from "./conditions";
 export { characterConditions } from "./character-conditions";
+export { dgCharacters, dgCharactersRelations } from "./dg-character";
 
 
 // Then export the relations (if needed)

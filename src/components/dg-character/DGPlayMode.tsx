@@ -1,0 +1,717 @@
+"use client"
+
+import { useState, useCallback } from "react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
+import { DGCharacter } from "@/db/schema/dg-character"
+import {
+  updateDGDerivedCurrent,
+  toggleSkillCheck,
+  endDGSession,
+  updateDGBond,
+  addDGBond,
+  removeDGBond,
+  addDGMotivation,
+  removeDGMotivation,
+  updateDGGearAndNotes,
+  updateDGWeapons,
+} from "@/app/actions/dg-characters"
+import { Minus, Plus, Trash2, Swords, RefreshCw } from "lucide-react"
+
+interface DGPlayModeProps {
+  character: DGCharacter
+}
+
+interface RollResult {
+  rolled: number
+  success: boolean
+  skillName: string
+  skillPct: number
+}
+
+export function DGPlayMode({ character }: DGPlayModeProps) {
+  const [derivedCurrent, setDerivedCurrent] = useState(character.derivedCurrent)
+  const [skills, setSkills] = useState(character.skills)
+  const [skillChecks, setSkillChecks] = useState<Record<string, boolean>>(character.skillChecks || {})
+  const [bonds, setBonds] = useState(character.bonds)
+  const [motivations, setMotivations] = useState(character.motivations)
+  const [woundsAndAilments, setWoundsAndAilments] = useState(character.woundsAndAilments || "")
+  const [armorAndGear, setArmorAndGear] = useState(character.armorAndGear || "")
+  const [personalDetails, setPersonalDetails] = useState(character.personalDetails || "")
+  const [homeAndFamily, setHomeAndFamily] = useState(character.homeAndFamily || "")
+  const [weapons, setWeapons] = useState(character.weapons || [])
+  const [endSessionLoading, setEndSessionLoading] = useState(false)
+
+  const [rollModal, setRollModal] = useState<{ open: boolean; skill: string; pct: number } | null>(null)
+  const [rollResult, setRollResult] = useState<RollResult | null>(null)
+
+  const [newBondName, setNewBondName] = useState("")
+  const [newMotivation, setNewMotivation] = useState("")
+  const [noteSaveTimeout, setNoteSaveTimeout] = useState<ReturnType<typeof setTimeout> | null>(null)
+
+  const stats = character.stats
+  const derivedMax = character.derivedMax
+
+  // --- Stats helpers ---
+
+  const handleDerivedChange = useCallback(
+    async (key: "HP" | "WP" | "SAN", delta: number) => {
+      const max = derivedMax[key]
+      const current = derivedCurrent[key]
+      const newVal = Math.max(0, Math.min(max, current + delta))
+      const newCurrent = { ...derivedCurrent, [key]: newVal }
+      setDerivedCurrent(newCurrent)
+      await updateDGDerivedCurrent(character.id, { [key]: newVal })
+    },
+    [character.id, derivedCurrent, derivedMax]
+  )
+
+  // --- Skill roll ---
+
+  const openRoll = (skill: string, pct: number) => {
+    setRollResult(null)
+    setRollModal({ open: true, skill, pct })
+  }
+
+  const handleRoll = async () => {
+    if (!rollModal) return
+    const rolled = Math.floor(Math.random() * 100) + 1
+    const success = rolled <= rollModal.pct
+    setRollResult({ rolled, success, skillName: rollModal.skill, skillPct: rollModal.pct })
+
+    if (!success && rollModal.skill !== "Unnatural" && (rollModal.pct > 0)) {
+      const newChecks = { ...skillChecks, [rollModal.skill]: true }
+      setSkillChecks(newChecks)
+      await toggleSkillCheck(character.id, rollModal.skill, true)
+    }
+  }
+
+  const handleCheckToggle = useCallback(
+    async (skill: string, checked: boolean) => {
+      if (skill === "Unnatural") return
+      const newChecks = { ...skillChecks, [skill]: checked }
+      setSkillChecks(newChecks)
+      await toggleSkillCheck(character.id, skill, checked)
+    },
+    [character.id, skillChecks]
+  )
+
+  // --- End session ---
+
+  const handleEndSession = async () => {
+    setEndSessionLoading(true)
+    const result = await endDGSession(character.id)
+    setEndSessionLoading(false)
+
+    if (!result.success) {
+      toast.error("Error", { description: result.error })
+      return
+    }
+
+    if (result.results!.length === 0) {
+      toast("No skills to advance", { description: "No checked skills this session." })
+    } else {
+      const newSkills = { ...skills }
+      const newChecks = { ...skillChecks }
+      result.results!.forEach(({ skill, newValue }) => {
+        newSkills[skill] = newValue
+        newChecks[skill] = false
+      })
+      setSkills(newSkills)
+      setSkillChecks(newChecks)
+      toast("Session ended!", {
+        description: `${result.results!.length} skill${result.results!.length > 1 ? "s" : ""} advanced.`,
+      })
+      result.results!.forEach(({ skill, roll, newValue }) => {
+        toast(`${skill} +${roll}`, { description: `Now at ${newValue}%` })
+      })
+    }
+  }
+
+  // --- Bonds ---
+
+  const handleBondChange = useCallback(
+    async (bondId: string, delta: number) => {
+      const result = await updateDGBond(character.id, bondId, delta)
+      if (result.success && result.bonds) setBonds(result.bonds)
+    },
+    [character.id]
+  )
+
+  const handleAddBond = async () => {
+    if (!newBondName.trim()) return
+    const result = await addDGBond(character.id, newBondName.trim(), stats.CHA)
+    if (result.success && result.bonds) {
+      setBonds(result.bonds)
+      setNewBondName("")
+      toast("Bond added")
+    }
+  }
+
+  const handleRemoveBond = async (bondId: string) => {
+    const result = await removeDGBond(character.id, bondId)
+    if (result.success) setBonds((prev) => prev.filter((b) => b.id !== bondId))
+  }
+
+  // --- Motivations ---
+
+  const handleAddMotivation = async () => {
+    if (!newMotivation.trim()) return
+    const result = await addDGMotivation(character.id, newMotivation.trim())
+    if (result.success && result.motivations) {
+      setMotivations(result.motivations)
+      setNewMotivation("")
+    } else {
+      toast.error("Error", { description: result.error })
+    }
+  }
+
+  const handleRemoveMotivation = async (index: number) => {
+    const result = await removeDGMotivation(character.id, index)
+    if (result.success && result.motivations) setMotivations(result.motivations)
+  }
+
+  // --- Notes (debounced save) ---
+
+  const scheduleSave = (fields: Parameters<typeof updateDGGearAndNotes>[1]) => {
+    if (noteSaveTimeout) clearTimeout(noteSaveTimeout)
+    setNoteSaveTimeout(
+      setTimeout(() => {
+        updateDGGearAndNotes(character.id, fields)
+      }, 1200)
+    )
+  }
+
+  // --- Weapons ---
+
+  const addWeaponRow = () => {
+    const newWeapon = {
+      id: crypto.randomUUID(),
+      name: "",
+      skillPct: "",
+      baseRange: "",
+      damage: "",
+      armorPiercing: "",
+      lethality: "",
+      killRadius: "",
+      ammo: "",
+    }
+    const updated = [...weapons, newWeapon]
+    setWeapons(updated)
+    updateDGWeapons(character.id, updated)
+  }
+
+  const updateWeapon = (id: string, field: string, value: string) => {
+    const updated = weapons.map((w) => (w.id === id ? { ...w, [field]: value } : w))
+    setWeapons(updated)
+    if (noteSaveTimeout) clearTimeout(noteSaveTimeout)
+    setNoteSaveTimeout(setTimeout(() => updateDGWeapons(character.id, updated), 1200))
+  }
+
+  const removeWeapon = (id: string) => {
+    const updated = weapons.filter((w) => w.id !== id)
+    setWeapons(updated)
+    updateDGWeapons(character.id, updated)
+  }
+
+  const sortedSkills = Object.entries(skills).sort(([a], [b]) => a.localeCompare(b))
+  const checkedCount = Object.values(skillChecks).filter(Boolean).length
+  const bp = derivedMax.BP
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="text-3xl font-bold">{character.name}</h2>
+        <div className="flex gap-2 mt-1 flex-wrap">
+          <Badge>{character.profession}</Badge>
+          {character.nationality && <Badge variant="outline">{character.nationality}</Badge>}
+          {character.age && <Badge variant="outline">Age {character.age}</Badge>}
+        </div>
+      </div>
+
+      {/* Stats & Derived */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Statistics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-6 gap-2 text-center text-sm mb-4">
+              {(["STR", "CON", "DEX", "INT", "POW", "CHA"] as const).map((s) => (
+                <div key={s} className="bg-muted/50 rounded p-2">
+                  <div className="font-bold text-lg">{stats[s]}</div>
+                  <div className="text-xs text-muted-foreground">{s}</div>
+                  <div className="text-xs text-muted-foreground">{stats[s] * 5}%</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Derived Attributes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {(["HP", "WP", "SAN"] as const).map((key) => (
+                <div key={key} className="flex items-center justify-between">
+                  <span className="font-medium w-10">{key}</span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={() => handleDerivedChange(key, -1)}
+                    >
+                      <Minus className="h-3 w-3" />
+                    </Button>
+                    <span className="text-lg font-bold w-8 text-center">{derivedCurrent[key]}</span>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7"
+                      onClick={() => handleDerivedChange(key, 1)}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                    <span className="text-sm text-muted-foreground">/ {derivedMax[key]}</span>
+                  </div>
+                </div>
+              ))}
+              <div className="flex items-center justify-between pt-1 border-t">
+                <span className="font-medium text-sm">Breaking Point (BP)</span>
+                <span className="font-bold text-lg text-destructive">{bp}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabs */}
+      <Tabs defaultValue="skills" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="skills">
+            Skills
+            {checkedCount > 0 && (
+              <Badge variant="destructive" className="ml-1 h-4 text-xs px-1">{checkedCount}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="bonds">Bonds</TabsTrigger>
+          <TabsTrigger value="notes">Notes</TabsTrigger>
+          <TabsTrigger value="equipment">Equipment</TabsTrigger>
+        </TabsList>
+
+        {/* ---- SKILLS TAB ---- */}
+        <TabsContent value="skills">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <div>
+                <CardTitle className="text-base">Applicable Skill Sets</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Check a box when you attempt to use a skill and fail.
+                </p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    disabled={endSessionLoading || checkedCount === 0}
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    {endSessionLoading ? "Rolling..." : `End Session (${checkedCount})`}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>End Session — Skill Advancement</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Roll 1D4 for each of the {checkedCount} checked skill{checkedCount !== 1 ? "s" : ""} and
+                      add the result to that skill&apos;s percentage. All checks will be cleared.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleEndSession}>Roll and Advance</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-0.5">
+                {sortedSkills.map(([skill, pct]) => {
+                  const isUnnatural = skill === "Unnatural"
+                  const checked = skillChecks[skill] || false
+                  return (
+                    <div
+                      key={skill}
+                      className="flex items-center gap-3 py-1.5 px-2 rounded hover:bg-muted/40 group"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(val) => handleCheckToggle(skill, !!val)}
+                        disabled={isUnnatural || pct === 0}
+                        className="shrink-0"
+                      />
+                      <button
+                        className="flex-1 flex items-center justify-between text-left"
+                        onClick={() => openRoll(skill, pct)}
+                      >
+                        <span className={`text-sm ${isUnnatural ? "text-muted-foreground" : ""}`}>
+                          {skill}
+                          {isUnnatural && (
+                            <span className="ml-1 text-xs text-muted-foreground">(no check)</span>
+                          )}
+                        </span>
+                        <span className={`text-sm font-mono font-medium ${pct > 0 ? "text-primary" : "text-muted-foreground"}`}>
+                          {pct}%
+                        </span>
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ---- BONDS TAB ---- */}
+        <TabsContent value="bonds">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Bonds</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                When a bond reaches 0 the relationship is damaged beyond repair.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                {bonds.map((bond) => (
+                  <div
+                    key={bond.id}
+                    className={`border rounded-lg p-3 ${bond.broken ? "opacity-60" : ""}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-medium ${bond.broken ? "line-through" : ""}`}>
+                          {bond.name}
+                        </span>
+                        {bond.broken && <Badge variant="destructive" className="text-xs">Broken</Badge>}
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove Bond?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently remove &quot;{bond.name}&quot; from your character sheet.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleRemoveBond(bond.id)}>Remove</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => handleBondChange(bond.id, -1)}
+                        disabled={bond.broken}
+                      >
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <span className="text-xl font-bold w-8 text-center">{bond.score}</span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => handleBondChange(bond.id, 1)}
+                        disabled={bond.broken}
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Add Bond</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={newBondName}
+                    onChange={(e) => setNewBondName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddBond()}
+                    placeholder='e.g. "My Sister"'
+                  />
+                  <Button onClick={handleAddBond} disabled={!newBondName.trim()}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add
+                  </Button>
+                </div>
+              </div>
+
+              <div className="border-t pt-4 space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm mb-2">
+                    Motivations ({motivations.length}/5)
+                  </h4>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Each time your Agent hits the Breaking Point, remove one motivation.
+                  </p>
+                  <div className="space-y-2">
+                    {motivations.map((m, i) => (
+                      <div key={i} className="flex items-center gap-2 border rounded p-2">
+                        <span className="flex-1 text-sm">{m}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleRemoveMotivation(i)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  {motivations.length < 5 && (
+                    <div className="flex gap-2 mt-2">
+                      <Input
+                        value={newMotivation}
+                        onChange={(e) => setNewMotivation(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleAddMotivation()}
+                        placeholder="Add a motivation..."
+                        className="text-sm"
+                      />
+                      <Button size="sm" onClick={handleAddMotivation} disabled={!newMotivation.trim()}>
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ---- NOTES TAB ---- */}
+        <TabsContent value="notes">
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Personal Details and Notes</Label>
+                  <Textarea
+                    value={personalDetails}
+                    onChange={(e) => {
+                      setPersonalDetails(e.target.value)
+                      scheduleSave({ personalDetails: e.target.value })
+                    }}
+                    rows={5}
+                    placeholder="Personal details, background notes..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Developments affecting Home and Family</Label>
+                  <Textarea
+                    value={homeAndFamily}
+                    onChange={(e) => {
+                      setHomeAndFamily(e.target.value)
+                      scheduleSave({ homeAndFamily: e.target.value })
+                    }}
+                    rows={5}
+                    placeholder="Family developments, home life changes..."
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ---- EQUIPMENT TAB ---- */}
+        <TabsContent value="equipment">
+          <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Wounds and Ailments</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  value={woundsAndAilments}
+                  onChange={(e) => {
+                    setWoundsAndAilments(e.target.value)
+                    scheduleSave({ woundsAndAilments: e.target.value })
+                  }}
+                  rows={3}
+                  placeholder="Current injuries, illnesses, or ailments..."
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Armor and Gear</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Body armor reduces damage of all attacks except Called Shots and successful Lethality rolls.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  value={armorAndGear}
+                  onChange={(e) => {
+                    setArmorAndGear(e.target.value)
+                    scheduleSave({ armorAndGear: e.target.value })
+                  }}
+                  rows={4}
+                  placeholder="Body armor, tactical gear, equipment..."
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <div>
+                  <CardTitle className="text-base">Weapons</CardTitle>
+                </div>
+                <Button size="sm" variant="outline" onClick={addWeaponRow}>
+                  <Swords className="h-3 w-3 mr-1" />
+                  Add Weapon
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {weapons.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No weapons added.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b text-muted-foreground">
+                          <th className="text-left py-1 pr-2 font-medium">Name</th>
+                          <th className="text-left py-1 pr-2 font-medium">Skill %</th>
+                          <th className="text-left py-1 pr-2 font-medium">Range</th>
+                          <th className="text-left py-1 pr-2 font-medium">Damage</th>
+                          <th className="text-left py-1 pr-2 font-medium">AP</th>
+                          <th className="text-left py-1 pr-2 font-medium">Lethality</th>
+                          <th className="text-left py-1 pr-2 font-medium">Kill R.</th>
+                          <th className="text-left py-1 pr-2 font-medium">Ammo</th>
+                          <th className="py-1" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {weapons.map((w) => (
+                          <tr key={w.id} className="border-b last:border-0">
+                            {(["name", "skillPct", "baseRange", "damage", "armorPiercing", "lethality", "killRadius", "ammo"] as const).map((field) => (
+                              <td key={field} className="py-1 pr-1">
+                                <Input
+                                  value={w[field]}
+                                  onChange={(e) => updateWeapon(w.id, field, e.target.value)}
+                                  className="h-7 text-xs px-1"
+                                />
+                              </td>
+                            ))}
+                            <td className="py-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                onClick={() => removeWeapon(w.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* Roll Modal */}
+      {rollModal && (
+        <Dialog open={rollModal.open} onOpenChange={(open) => { if (!open) setRollModal(null) }}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{rollModal.skill}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="text-center">
+                <p className="text-muted-foreground text-sm">Target: {rollModal.pct}% or lower</p>
+              </div>
+
+              {!rollResult ? (
+                <Button className="w-full" onClick={handleRoll} disabled={rollModal.pct === 0}>
+                  Roll d100
+                </Button>
+              ) : (
+                <div className="space-y-3">
+                  <div className={`text-center p-4 rounded-lg ${rollResult.success ? "bg-green-500/10 border border-green-500/30" : "bg-destructive/10 border border-destructive/30"}`}>
+                    <div className="text-4xl font-bold mb-1">{rollResult.rolled}</div>
+                    <div className={`text-lg font-semibold ${rollResult.success ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>
+                      {rollResult.success ? "SUCCESS" : "FAILURE"}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {rollResult.success
+                        ? `${rollResult.rolled} ≤ ${rollResult.skillPct}%`
+                        : `${rollResult.rolled} > ${rollResult.skillPct}%`}
+                    </p>
+                  </div>
+                  {!rollResult.success && rollModal.skill !== "Unnatural" && rollModal.pct > 0 && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      Skill check marked for end-of-session advancement.
+                    </p>
+                  )}
+                  <Button variant="outline" className="w-full" onClick={() => setRollResult(null)}>
+                    Roll Again
+                  </Button>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setRollModal(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  )
+}

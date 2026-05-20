@@ -1,0 +1,30 @@
+CREATE TABLE "dg_characters" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" uuid NOT NULL,
+	"name" text DEFAULT 'New Agent' NOT NULL,
+	"profession" text DEFAULT 'Sniper',
+	"employer" text DEFAULT '',
+	"nationality" text DEFAULT 'American',
+	"sex" text DEFAULT '',
+	"age" text DEFAULT '',
+	"dob" text DEFAULT '',
+	"education_history" text DEFAULT '',
+	"physical_description" text DEFAULT '',
+	"stats" jsonb DEFAULT '{"STR":10,"CON":10,"DEX":10,"INT":10,"POW":10,"CHA":12}'::jsonb NOT NULL,
+	"derived_max" jsonb DEFAULT '{"HP":10,"WP":10,"SAN":50,"BP":40}'::jsonb NOT NULL,
+	"derived_current" jsonb DEFAULT '{"HP":10,"WP":10,"SAN":50}'::jsonb NOT NULL,
+	"skills" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"skill_checks" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"bonds" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"motivations" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"wounds_and_ailments" text DEFAULT '',
+	"armor_and_gear" text DEFAULT '',
+	"weapons" jsonb DEFAULT '[]'::jsonb,
+	"personal_details" text DEFAULT '',
+	"home_and_family" text DEFAULT '',
+	"special_training" jsonb DEFAULT '[]'::jsonb,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "dg_characters" ADD CONSTRAINT "dg_characters_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
