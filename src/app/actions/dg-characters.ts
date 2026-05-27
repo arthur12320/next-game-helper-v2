@@ -232,6 +232,46 @@ export async function endDGSession(id: string) {
   }
 }
 
+export async function applyDGSessionAdvancement(
+  id: string,
+  rolls: Record<string, number>
+) {
+  const session = await auth()
+  if (!session?.user?.id) return { success: false, error: "Unauthorized" }
+
+  try {
+    const [existing] = await db
+      .select()
+      .from(dgCharacters)
+      .where(and(eq(dgCharacters.id, id), eq(dgCharacters.userId, session.user.id)))
+
+    if (!existing) return { success: false, error: "Character not found" }
+
+    const results: Array<{ skill: string; roll: number; newValue: number }> = []
+    const newSkills = { ...existing.skills }
+    const newChecks: Record<string, boolean> = {}
+
+    for (const [skill, roll] of Object.entries(rolls)) {
+      if (existing.skills[skill] !== undefined) {
+        const newValue = Math.min(99, (newSkills[skill] ?? 0) + roll)
+        newSkills[skill] = newValue
+        results.push({ skill, roll, newValue })
+      }
+    }
+
+    await db
+      .update(dgCharacters)
+      .set({ skills: newSkills, skillChecks: newChecks, updatedAt: new Date() })
+      .where(and(eq(dgCharacters.id, id), eq(dgCharacters.userId, session.user.id)))
+
+    revalidatePath(`/dg-characters/${id}/play`)
+    return { success: true, results }
+  } catch (error) {
+    console.error("Error applying DG session advancement:", error)
+    return { success: false, error: "Failed to apply session advancement" }
+  }
+}
+
 export async function updateDGBond(id: string, bondId: string, delta: number) {
   const session = await auth()
   if (!session?.user?.id) return { success: false, error: "Unauthorized" }

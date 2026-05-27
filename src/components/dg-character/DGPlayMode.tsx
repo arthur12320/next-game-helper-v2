@@ -40,8 +40,11 @@ import {
   removeDGMotivation,
   updateDGGearAndNotes,
   updateDGWeapons,
+  updateDGCharacter,
+  applyDGSessionAdvancement,
 } from "@/app/actions/dg-characters"
-import { Minus, Plus, Trash2, Swords, RefreshCw } from "lucide-react"
+import { Minus, Plus, Trash2, Swords, RefreshCw, Pencil } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface DGPlayModeProps {
   character: DGCharacter
@@ -69,6 +72,45 @@ export function DGPlayMode({ character }: DGPlayModeProps) {
 
   const [rollModal, setRollModal] = useState<{ open: boolean; skill: string; pct: number } | null>(null)
   const [rollResult, setRollResult] = useState<RollResult | null>(null)
+
+  // --- End session dialog ---
+  const [endSessionOpen, setEndSessionOpen] = useState(false)
+  const [endSessionMode, setEndSessionMode] = useState<"auto" | "manual">("auto")
+  const [manualRolls, setManualRolls] = useState<Record<string, number>>({})
+
+  // --- Admin mode (direct skill editing) ---
+  const [adminMode, setAdminMode] = useState(false)
+  const [editedSkills, setEditedSkills] = useState<Record<string, number>>({})
+  const [adminSaving, setAdminSaving] = useState(false)
+
+  const enterAdminMode = () => {
+    setEditedSkills({ ...skills })
+    setAdminMode(true)
+  }
+
+  const cancelAdminMode = () => {
+    setEditedSkills({})
+    setAdminMode(false)
+  }
+
+  const handleAdminSkillChange = (skill: string, value: string) => {
+    const num = parseInt(value, 10)
+    setEditedSkills((prev) => ({ ...prev, [skill]: isNaN(num) ? 0 : num }))
+  }
+
+  const handleAdminSave = async () => {
+    setAdminSaving(true)
+    const result = await updateDGCharacter(character.id, { skills: editedSkills })
+    setAdminSaving(false)
+    if (result.success) {
+      setSkills(editedSkills)
+      setAdminMode(false)
+      setEditedSkills({})
+      toast("Skills updated", { description: "All skill values saved." })
+    } else {
+      toast.error("Error", { description: result.error || "Failed to save skills." })
+    }
+  }
 
   const [newBondName, setNewBondName] = useState("")
   const [newMotivation, setNewMotivation] = useState("")
@@ -127,6 +169,7 @@ export function DGPlayMode({ character }: DGPlayModeProps) {
     setEndSessionLoading(true)
     const result = await endDGSession(character.id)
     setEndSessionLoading(false)
+    setEndSessionOpen(false)
 
     if (!result.success) {
       toast.error("Error", { description: result.error })
@@ -136,20 +179,54 @@ export function DGPlayMode({ character }: DGPlayModeProps) {
     if (result.results!.length === 0) {
       toast("No skills to advance", { description: "No checked skills this session." })
     } else {
-      const newSkills = { ...skills }
-      const newChecks = { ...skillChecks }
-      result.results!.forEach(({ skill, newValue }) => {
-        newSkills[skill] = newValue
-        newChecks[skill] = false
-      })
-      setSkills(newSkills)
-      setSkillChecks(newChecks)
-      toast("Session ended!", {
-        description: `${result.results!.length} skill${result.results!.length > 1 ? "s" : ""} advanced.`,
-      })
-      result.results!.forEach(({ skill, roll, newValue }) => {
-        toast(`${skill} +${roll}`, { description: `Now at ${newValue}%` })
-      })
+      applySessionResults(result.results!)
+    }
+  }
+
+  const openEndSessionDialog = () => {
+    setEndSessionMode("auto")
+    setManualRolls({})
+    setEndSessionOpen(true)
+  }
+
+  const initManualRolls = () => {
+    const rolls: Record<string, number> = {}
+    Object.entries(skillChecks)
+      .filter(([, v]) => v)
+      .forEach(([skill]) => { rolls[skill] = 1 })
+    setManualRolls(rolls)
+  }
+
+  const applySessionResults = (results: Array<{ skill: string; roll: number; newValue: number }>) => {
+    const newSkills = { ...skills }
+    const newChecks = { ...skillChecks }
+    results.forEach(({ skill, newValue }) => {
+      newSkills[skill] = newValue
+      newChecks[skill] = false
+    })
+    setSkills(newSkills)
+    setSkillChecks(newChecks)
+    toast("Session ended!", {
+      description: `${results.length} skill${results.length !== 1 ? "s" : ""} advanced.`,
+    })
+    results.forEach(({ skill, roll, newValue }) => {
+      toast(`${skill} +${roll}`, { description: `Now at ${newValue}%` })
+    })
+  }
+
+  const handleManualEndSession = async () => {
+    setEndSessionLoading(true)
+    const result = await applyDGSessionAdvancement(character.id, manualRolls)
+    setEndSessionLoading(false)
+    setEndSessionOpen(false)
+    if (!result.success) {
+      toast.error("Error", { description: result.error })
+      return
+    }
+    if (result.results!.length === 0) {
+      toast("No skills advanced")
+    } else {
+      applySessionResults(result.results!)
     }
   }
 
@@ -332,43 +409,93 @@ export function DGPlayMode({ character }: DGPlayModeProps) {
         <TabsContent value="skills">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <div>
-                <CardTitle className="text-base">Applicable Skill Sets</CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Check a box when you attempt to use a skill and fail.
-                </p>
+              <div className="flex items-center gap-2">
+                <div>
+                  <CardTitle className="text-base">Applicable Skill Sets</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {adminMode
+                      ? "Type a new value to directly set any skill."
+                      : "Check a box when you attempt to use a skill and fail."}
+                  </p>
+                </div>
+                {adminMode && (
+                  <Badge variant="secondary" className="shrink-0">Admin Mode</Badge>
+                )}
               </div>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    disabled={endSessionLoading || checkedCount === 0}
-                  >
-                    <RefreshCw className="h-3 w-3 mr-1" />
-                    {endSessionLoading ? "Rolling..." : `End Session (${checkedCount})`}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>End Session — Skill Advancement</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Roll 1D4 for each of the {checkedCount} checked skill{checkedCount !== 1 ? "s" : ""} and
-                      add the result to that skill&apos;s percentage. All checks will be cleared.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleEndSession}>Roll and Advance</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <div className="flex items-center gap-2">
+                {adminMode ? (
+                  <>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleAdminSave}
+                      disabled={adminSaving}
+                    >
+                      {adminSaving ? "Saving…" : "Save"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={cancelAdminMode}
+                      disabled={adminSaving}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      disabled={endSessionLoading || checkedCount === 0}
+                      onClick={openEndSessionDialog}
+                    >
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      {endSessionLoading ? "Processing..." : `End Session (${checkedCount})`}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={enterAdminMode}
+                    >
+                      <Pencil className="h-3 w-3 mr-1" />
+                      Admin
+                    </Button>
+                  </>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-0.5">
                 {sortedSkills.map(([skill, pct]) => {
                   const isUnnatural = skill === "Unnatural"
                   const checked = skillChecks[skill] || false
+
+                  if (adminMode) {
+                    const editVal = editedSkills[skill] ?? pct
+                    const isInvalid = editVal < 0 || editVal > 99
+                    return (
+                      <div
+                        key={skill}
+                        className="flex items-center gap-3 py-1 px-2 rounded"
+                      >
+                        <span className="text-sm flex-1">{skill}</span>
+                        <div className="flex items-center gap-1.5">
+                          <Input
+                            type="number"
+                            value={isNaN(editVal) ? "" : editVal}
+                            onChange={(e) => handleAdminSkillChange(skill, e.target.value)}
+                            className={cn(
+                              "h-7 w-20 text-sm text-right font-mono",
+                              isInvalid && "border-destructive focus-visible:ring-destructive"
+                            )}
+                          />
+                          <span className="text-xs text-muted-foreground">%</span>
+                        </div>
+                      </div>
+                    )
+                  }
+
                   return (
                     <div
                       key={skill}
@@ -665,6 +792,102 @@ export function DGPlayMode({ character }: DGPlayModeProps) {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* End Session Dialog */}
+      <Dialog open={endSessionOpen} onOpenChange={(open) => { if (!open) setEndSessionOpen(false) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>End Session — Skill Advancement</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Mode toggle */}
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={endSessionMode === "auto" ? "default" : "outline"}
+                onClick={() => setEndSessionMode("auto")}
+              >
+                Auto Roll
+              </Button>
+              <Button
+                size="sm"
+                variant={endSessionMode === "manual" ? "default" : "outline"}
+                onClick={() => { setEndSessionMode("manual"); initManualRolls() }}
+              >
+                Manual Roll
+              </Button>
+            </div>
+
+            {endSessionMode === "auto" ? (
+              <p className="text-sm text-muted-foreground">
+                Roll 1D4 for each of the {checkedCount} checked skill{checkedCount !== 1 ? "s" : ""} and
+                add the result to that skill&apos;s percentage. All checks will be cleared.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Enter your d4 roll result (1–4) for each checked skill.
+                </p>
+                <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                  {Object.entries(skillChecks)
+                    .filter(([, v]) => v)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([skill]) => {
+                      const val = manualRolls[skill] ?? 1
+                      const isInvalid = isNaN(val) || val < 1 || val > 4
+                      return (
+                        <div key={skill} className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-sm truncate">{skill}</span>
+                            <span className="text-xs text-muted-foreground shrink-0">
+                              {skills[skill]}%
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-xs text-muted-foreground">+</span>
+                            <Input
+                              type="number"
+                              value={isNaN(val) ? "" : val}
+                              onChange={(e) => {
+                                const n = parseInt(e.target.value, 10)
+                                setManualRolls((prev) => ({ ...prev, [skill]: isNaN(n) ? 0 : n }))
+                              }}
+                              className={cn(
+                                "h-7 w-16 text-center text-sm font-mono",
+                                isInvalid && "border-destructive focus-visible:ring-destructive"
+                              )}
+                            />
+                            <span className="text-xs text-muted-foreground">d4</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEndSessionOpen(false)} disabled={endSessionLoading}>
+              Cancel
+            </Button>
+            {endSessionMode === "auto" ? (
+              <Button onClick={handleEndSession} disabled={endSessionLoading}>
+                {endSessionLoading ? "Rolling..." : "Roll and Advance"}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleManualEndSession}
+                disabled={
+                  endSessionLoading ||
+                  Object.values(manualRolls).some((v) => isNaN(v) || v < 1 || v > 4)
+                }
+              >
+                {endSessionLoading ? "Applying..." : "Apply"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Roll Modal */}
       {rollModal && (
