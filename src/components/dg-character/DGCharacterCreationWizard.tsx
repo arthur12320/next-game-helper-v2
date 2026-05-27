@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress"
 import { createDGCharacter } from "@/app/actions/dg-characters"
 import { DEFAULT_DG_SKILLS, calcDerived } from "@/lib/dg-data"
 import { DGCharacter } from "@/db/schema/dg-character"
+import type { DGMoS } from "@/db/schema/dg-mos"
 import { toast } from "sonner"
 import { PersonalDataStep } from "./steps/PersonalDataStep"
 import { StatsStep } from "./steps/StatsStep"
@@ -25,15 +26,24 @@ const STEPS = [
   { id: 6, title: "Finalize", description: "Review and create" },
 ]
 
-export function DGCharacterCreationWizard() {
+interface DGCharacterCreationWizardProps {
+  mosList: DGMoS[]
+}
+
+export function DGCharacterCreationWizard({ mosList }: DGCharacterCreationWizardProps) {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [bonusSelections, setBonusSelections] = useState<Record<string, number>>({})
+  const [typedSkills, setTypedSkills] = useState<Record<string, number>>({})
+  const [statsValid, setStatsValid] = useState(true)
+
+  const defaultMoS = mosList[0]?.name ?? ""
+  const defaultMoSSkills = mosList[0]?.skills ?? {}
 
   const [characterData, setCharacterData] = useState<Partial<DGCharacter>>({
     name: "New Agent",
-    profession: "Sniper",
+    profession: defaultMoS,
     nationality: "American",
     sex: "",
     age: "",
@@ -41,13 +51,34 @@ export function DGCharacterCreationWizard() {
     educationHistory: "",
     physicalDescription: "",
     stats: { STR: 10, CON: 10, DEX: 10, INT: 10, POW: 10, CHA: 12 },
-    skills: DEFAULT_DG_SKILLS,
+    skills: { ...DEFAULT_DG_SKILLS, ...defaultMoSSkills },
     bonds: [],
     motivations: [],
   })
 
   const updateCharacterData = useCallback((updates: Partial<DGCharacter>) => {
-    setCharacterData((prev) => ({ ...prev, ...updates }))
+    setCharacterData((prev) => {
+      // If MoS changed, reset bonus selections and recompute base skills (keep typedSkills)
+      if (updates.profession !== undefined && updates.profession !== prev.profession) {
+        const newMoS = mosList.find((m) => m.name === updates.profession)
+        const newMoSSkills = newMoS?.skills ?? {}
+        setBonusSelections({})
+        return {
+          ...prev,
+          ...updates,
+          skills: { ...DEFAULT_DG_SKILLS, ...newMoSSkills, ...typedSkills },
+        }
+      }
+      return { ...prev, ...updates }
+    })
+  }, [mosList, typedSkills])
+
+  const handleAddTypedSkill = useCallback((name: string) => {
+    setTypedSkills((prev) => {
+      if (name in prev) return prev
+      const next = { ...prev, [name]: 0 }
+      return next
+    })
   }, [])
 
   const handleNext = () => {
@@ -85,6 +116,11 @@ export function DGCharacterCreationWizard() {
     }
   }
 
+  const selectedMoSBonds =
+    mosList.find((m) => m.name === characterData.profession)?.bonds ?? 3
+
+  const isNextDisabled = isSubmitting || (currentStep === 2 && !statsValid)
+
   const progress = (currentStep / STEPS.length) * 100
 
   return (
@@ -103,16 +139,38 @@ export function DGCharacterCreationWizard() {
           <Progress value={progress} className="h-2" />
         </CardHeader>
         <CardContent className="pt-6">
-          {currentStep === 1 && <PersonalDataStep data={characterData} onUpdate={updateCharacterData} />}
-          {currentStep === 2 && <StatsStep data={characterData} onUpdate={updateCharacterData} />}
+          {currentStep === 1 && (
+            <PersonalDataStep
+              data={characterData}
+              onUpdate={updateCharacterData}
+              mosList={mosList}
+            />
+          )}
+          {currentStep === 2 && (
+            <StatsStep
+              data={characterData}
+              onUpdate={updateCharacterData}
+              onValidityChange={setStatsValid}
+            />
+          )}
           {currentStep === 3 && (
             <SkillsStep
               onUpdate={updateCharacterData}
               bonusSelections={bonusSelections}
               onBonusChange={setBonusSelections}
+              mosList={mosList}
+              selectedMoS={characterData.profession ?? ""}
+              typedSkills={typedSkills}
+              onAddTypedSkill={handleAddTypedSkill}
             />
           )}
-          {currentStep === 4 && <BondsStep data={characterData} onUpdate={updateCharacterData} />}
+          {currentStep === 4 && (
+            <BondsStep
+              data={characterData}
+              onUpdate={updateCharacterData}
+              mosBonds={selectedMoSBonds}
+            />
+          )}
           {currentStep === 5 && <MotivationsStep data={characterData} onUpdate={updateCharacterData} />}
           {currentStep === 6 && <FinalizeStep data={characterData} />}
         </CardContent>
@@ -123,7 +181,7 @@ export function DGCharacterCreationWizard() {
           Back
         </Button>
         {currentStep < STEPS.length ? (
-          <Button onClick={handleNext} disabled={isSubmitting}>
+          <Button onClick={handleNext} disabled={isNextDisabled}>
             Next
           </Button>
         ) : (

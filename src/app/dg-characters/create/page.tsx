@@ -2,8 +2,11 @@ import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { DGCharacterCreationWizard } from "@/components/dg-character/DGCharacterCreationWizard"
+import { fetchDGMoSList } from "@/app/actions/dg-config"
 
-export default function CreateDGCharacterPage() {
+export default async function CreateDGCharacterPage() {
+  const mosList = await fetchDGMoSList()
+
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
       <div className="mb-6">
@@ -20,7 +23,7 @@ export default function CreateDGCharacterPage() {
         <p className="text-muted-foreground mt-2">Recruit your Delta Green operative</p>
       </div>
 
-      <DGCharacterCreationWizard />
+      <DGCharacterCreationWizard mosList={mosList} />
     </div>
   )
 }

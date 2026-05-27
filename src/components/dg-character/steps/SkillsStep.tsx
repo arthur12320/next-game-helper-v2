@@ -1,25 +1,20 @@
 "use client"
 
+import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { DGCharacter } from "@/db/schema/dg-character"
-import { DEFAULT_DG_SKILLS } from "@/lib/dg-data"
+import type { DGMoS } from "@/db/schema/dg-mos"
+import { DEFAULT_DG_SKILLS, TYPED_SKILL_CATEGORIES } from "@/lib/dg-data"
 import { Plus, Minus } from "lucide-react"
-
-const MOS_PROFESSIONAL_SKILLS: Record<string, number> = {
-  Alertness: 60,
-  Athletics: 60,
-  Search: 60,
-  Firearms: 60,
-  "Heavy Weapons": 50,
-  "Melee Weapons": 40,
-  "Military Science (Land)": 60,
-  Navigate: 50,
-  Stealth: 60,
-  Survival: 60,
-  Swim: 50,
-  "Unarmed Combat": 50,
-}
 
 const BONUS_SLOTS = 8
 
@@ -27,6 +22,10 @@ interface SkillsStepProps {
   onUpdate: (updates: Partial<DGCharacter>) => void
   bonusSelections: Record<string, number>
   onBonusChange: (selections: Record<string, number>) => void
+  mosList: DGMoS[]
+  selectedMoS: string
+  typedSkills: Record<string, number>
+  onAddTypedSkill: (name: string) => void
 }
 
 function applyBonusSelections(
@@ -42,8 +41,24 @@ function applyBonusSelections(
   return result
 }
 
-export function SkillsStep({ onUpdate, bonusSelections, onBonusChange }: SkillsStepProps) {
-  const baseSkills = DEFAULT_DG_SKILLS
+export function SkillsStep({
+  onUpdate,
+  bonusSelections,
+  onBonusChange,
+  mosList,
+  selectedMoS,
+  typedSkills,
+  onAddTypedSkill,
+}: SkillsStepProps) {
+  const [pendingCategory, setPendingCategory] = useState<string | null>(null)
+  const [typeSuffix, setTypeSuffix] = useState("")
+
+  const mosData = mosList.find((m) => m.name === selectedMoS)
+  const mosSkills = mosData?.skills ?? {}
+
+  // Base = defaults overridden by MoS professional values, plus player-added typed skills
+  const baseSkills: Record<string, number> = { ...DEFAULT_DG_SKILLS, ...mosSkills, ...typedSkills }
+
   const slotsUsed = Object.values(bonusSelections).reduce((sum, v) => sum + v, 0)
   const slotsLeft = BONUS_SLOTS - slotsUsed
 
@@ -69,22 +84,99 @@ export function SkillsStep({ onUpdate, bonusSelections, onBonusChange }: SkillsS
     onUpdate({ skills: applyBonusSelections(baseSkills, newSelections) })
   }
 
+  const handleAddTyped = () => {
+    if (!pendingCategory || !typeSuffix.trim()) return
+    const skillName = `${pendingCategory} (${typeSuffix.trim()})`
+    onAddTypedSkill(skillName)
+    // Update character skills immediately to include the new typed skill at 0
+    onUpdate({ skills: applyBonusSelections({ ...baseSkills, [skillName]: 0 }, bonusSelections) })
+    setPendingCategory(null)
+    setTypeSuffix("")
+  }
+
   const sortedSkills = Object.entries(baseSkills).sort(([a], [b]) => a.localeCompare(b))
+  const mosProfessionalSkillNames = Object.keys(mosSkills)
+
+  // Typed categories not yet added as specific instances in this session
+  const availableCategories = TYPED_SKILL_CATEGORIES
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="font-semibold mb-2">Sniper MoS — Professional Skills</h3>
-        <p className="text-sm text-muted-foreground mb-3">
-          These replace the base values on your character sheet.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(MOS_PROFESSIONAL_SKILLS).map(([skill, pct]) => (
-            <Badge key={skill} variant="secondary">
-              {skill} {pct}%
-            </Badge>
-          ))}
+      {mosProfessionalSkillNames.length > 0 && (
+        <div>
+          <h3 className="font-semibold mb-2">{selectedMoS || "MoS"} — Professional Skills</h3>
+          <p className="text-sm text-muted-foreground mb-3">
+            These replace the base values on your character sheet.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(mosSkills)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([skill, pct]) => (
+                <Badge key={skill} variant="secondary">
+                  {skill} {pct}%
+                </Badge>
+              ))}
+          </div>
         </div>
+      )}
+
+      {/* Typed skill adder */}
+      <div className="space-y-2">
+        <h3 className="font-semibold">Add Typed Skill</h3>
+        <p className="text-sm text-muted-foreground">
+          Art, Craft, Foreign Language, Military Science, Pilot, and Science require a specific type.
+        </p>
+        {pendingCategory ? (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium">{pendingCategory} (</span>
+            <Input
+              value={typeSuffix}
+              onChange={(e) => setTypeSuffix(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAddTyped()}
+              placeholder={
+                pendingCategory === "Art" ? "e.g. Photography" :
+                pendingCategory === "Craft" ? "e.g. Carpentry" :
+                pendingCategory === "Foreign Language" ? "e.g. Spanish" :
+                pendingCategory === "Military Science" ? "e.g. Land" :
+                pendingCategory === "Pilot" ? "e.g. Aircraft" :
+                "e.g. Biology"
+              }
+              className="w-36 h-8 text-sm"
+              autoFocus
+            />
+            <span className="text-sm font-medium">)</span>
+            <Button size="sm" onClick={handleAddTyped} disabled={!typeSuffix.trim()}>
+              Add
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setPendingCategory(null); setTypeSuffix("") }}>
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <Select onValueChange={(v) => { setPendingCategory(v); setTypeSuffix("") }}>
+            <SelectTrigger className="w-52 h-8 text-sm border-dashed">
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              <SelectValue placeholder="Add typed skill…" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableCategories.map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  {cat} (…)
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {/* Currently added typed skills preview */}
+        {Object.keys(typedSkills).length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            {Object.keys(typedSkills).map((s) => (
+              <Badge key={s} variant="outline" className="text-xs">
+                {s} (added)
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
 
       <div>
@@ -106,6 +198,8 @@ export function SkillsStep({ onUpdate, bonusSelections, onBonusChange }: SkillsS
             const currentPct = skillsWithBonus[skill] ?? 0
             const isUnnatural = skill === "Unnatural"
             const isCapped = currentPct >= 80
+            const isMoS = mosProfessionalSkillNames.includes(skill)
+            const isTyped = skill in typedSkills
 
             return (
               <div
@@ -114,8 +208,11 @@ export function SkillsStep({ onUpdate, bonusSelections, onBonusChange }: SkillsS
               >
                 <div className="flex items-center gap-2">
                   <span className="text-sm">{skill}</span>
-                  {skill in MOS_PROFESSIONAL_SKILLS && (
+                  {isMoS && (
                     <Badge variant="outline" className="text-xs h-4 px-1">MoS</Badge>
+                  )}
+                  {isTyped && !isMoS && (
+                    <Badge variant="outline" className="text-xs h-4 px-1 border-dashed">typed</Badge>
                   )}
                   {isCapped && !isUnnatural && (
                     <Badge variant="secondary" className="text-xs h-4 px-1">max</Badge>

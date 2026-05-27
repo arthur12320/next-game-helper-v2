@@ -3,14 +3,23 @@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { DGCharacter } from "@/db/schema/dg-character"
+import type { DGMoS } from "@/db/schema/dg-mos"
 
 interface PersonalDataStepProps {
   data: Partial<DGCharacter>
   onUpdate: (updates: Partial<DGCharacter>) => void
+  mosList: DGMoS[]
 }
 
-export function PersonalDataStep({ data, onUpdate }: PersonalDataStepProps) {
+export function PersonalDataStep({ data, onUpdate, mosList }: PersonalDataStepProps) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -26,7 +35,30 @@ export function PersonalDataStep({ data, onUpdate }: PersonalDataStepProps) {
 
         <div className="space-y-2">
           <Label htmlFor="profession">MoS (Military Occupational Specialty)</Label>
-          <Input id="profession" value="Sniper" disabled className="bg-muted" />
+          {mosList.length > 0 ? (
+            <Select
+              value={data.profession ?? mosList[0]?.name ?? ""}
+              onValueChange={(value) => onUpdate({ profession: value })}
+            >
+              <SelectTrigger id="profession" className="w-full">
+                <SelectValue placeholder="Select MoS…" />
+              </SelectTrigger>
+              <SelectContent>
+                {mosList.map((mos) => (
+                  <SelectItem key={mos.id} value={mos.name}>
+                    {mos.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              id="profession"
+              value="No MoS configured"
+              disabled
+              className="bg-muted"
+            />
+          )}
         </div>
 
         <div className="space-y-2">

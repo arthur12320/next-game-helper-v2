@@ -26,6 +26,8 @@ export { globalTokens } from "./global-token";
 export { conditions } from "./conditions";
 export { characterConditions } from "./character-conditions";
 export { dgCharacters, dgCharactersRelations } from "./dg-character";
+export { dgMos } from "./dg-mos";
+export type { DGMoS, NewDGMoS } from "./dg-mos";
 
 
 // Then export the relations (if needed)

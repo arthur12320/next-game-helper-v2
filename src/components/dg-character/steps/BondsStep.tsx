@@ -10,9 +10,10 @@ import { Trash2, Plus } from "lucide-react"
 interface BondsStepProps {
   data: Partial<DGCharacter>
   onUpdate: (updates: Partial<DGCharacter>) => void
+  mosBonds?: number
 }
 
-export function BondsStep({ data, onUpdate }: BondsStepProps) {
+export function BondsStep({ data, onUpdate, mosBonds = 3 }: BondsStepProps) {
   const [newBondName, setNewBondName] = useState("")
   const bonds = data.bonds || []
   const cha = data.stats?.CHA || 10
@@ -33,11 +34,13 @@ export function BondsStep({ data, onUpdate }: BondsStepProps) {
     onUpdate({ bonds: bonds.filter((b) => b.id !== id) })
   }
 
+  const remaining = mosBonds - bonds.length
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
         <p className="text-sm text-muted-foreground">
-          Choose <strong>2 non-Delta Green bonds</strong> — vital people in your agent&apos;s life. Each bond starts
+          Choose <strong>{mosBonds} non-Delta Green bond{mosBonds !== 1 ? "s" : ""}</strong> — vital people in your agent&apos;s life. Each bond starts
           with a score equal to your CHA ({cha}).
         </p>
         <p className="text-xs text-muted-foreground">
@@ -63,9 +66,11 @@ export function BondsStep({ data, onUpdate }: BondsStepProps) {
           </div>
         ))}
 
-        {bonds.length < 2 && (
+        {remaining > 0 && (
           <p className="text-sm text-amber-600 dark:text-amber-400">
-            {bonds.length === 0 ? "Add 2 bonds" : "Add 1 more bond"}
+            {remaining === mosBonds
+              ? `Add ${mosBonds} bond${mosBonds !== 1 ? "s" : ""}`
+              : `Add ${remaining} more bond${remaining !== 1 ? "s" : ""}`}
           </p>
         )}
       </div>
