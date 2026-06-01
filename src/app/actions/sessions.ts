@@ -168,3 +168,35 @@ export async function updatePresence(sessionId: string) {
 export async function getSessionData(sessionId: string) {
   return await fetchSessionData(sessionId);
 }
+
+export async function appendSessionEvent(sessionId: string, description: string) {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: "Unauthorized" };
+
+  const [current] = await db
+    .select()
+    .from(rpgsessions)
+    .where(eq(rpgsessions.id, sessionId));
+  if (!current) return { success: false, error: "Session not found" };
+
+  const notes: SessionNotes = (
+    typeof current.notes === "string"
+      ? JSON.parse(current.notes)
+      : current.notes
+  ) ?? { events: [], npcs: [], locations: [], generalNotes: "" };
+
+  const updated: SessionNotes = {
+    ...notes,
+    events: [
+      ...(notes.events ?? []),
+      { description, timestamp: new Date().toISOString() },
+    ],
+  };
+
+  await db
+    .update(rpgsessions)
+    .set({ notes: updated, updatedAt: new Date() })
+    .where(eq(rpgsessions.id, sessionId));
+
+  return { success: true };
+}

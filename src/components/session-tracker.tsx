@@ -37,104 +37,85 @@ import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 import type { Session, SessionNotes } from "@/db/schema/rpgSessions";
 
+function parseNotes(raw: unknown): SessionNotes {
+  return typeof raw === "string" ? JSON.parse(raw) : (raw as SessionNotes);
+}
+
 interface SessionTrackerProps {
   session: Session;
   activeUsers?: Array<{ userId: string; userName: string; lastSeen: Date }>;
+  externalRefreshSignal?: number;
 }
 
 export default function SessionTracker({
   session: initialSession,
   activeUsers: initialActiveUsers = [],
+  externalRefreshSignal = 0,
 }: SessionTrackerProps) {
   const router = useRouter();
   const { data: sessionData } = useSession();
   const [isPending, startTransition] = useTransition();
-  const [notes, setNotes] = useState<SessionNotes>(() => {
-    if (typeof initialSession.notes === "string") {
-      return JSON.parse(initialSession.notes);
-    }
-    return initialSession.notes as SessionNotes;
-  });
-
+  const [notes, setNotes] = useState<SessionNotes>(() =>
+    parseNotes(initialSession.notes),
+  );
   const [activeUsers, setActiveUsers] = useState(initialActiveUsers);
-  // const [lastUpdated, setLastUpdated] = useState(
-  //   new Date(initialSession.updatedAt)
-  // );
   const [isOnline, setIsOnline] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Always-current refs — read inside timers/intervals to avoid stale closures
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
+  const hasUnsavedRef = useRef(hasUnsavedChanges);
+  hasUnsavedRef.current = hasUnsavedChanges;
+
   const lastSaveRef = useRef<Date>(new Date());
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const presenceIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // autoSave reads from refs at fire time — never captures stale notes
   const autoSave = useCallback(() => {
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
-      if (hasUnsavedChanges) {
-        startTransition(async () => {
-          try {
-            await updateSessionNotes(initialSession.id, notes);
-            lastSaveRef.current = new Date();
-            setHasUnsavedChanges(false);
-            console.log("[v0] Auto-saved changes");
-          } catch (error) {
-            console.error("[v0] Failed to auto-save:", error);
-          }
-        });
-      }
-    }, 3000); // Auto-save after 3 seconds of inactivity
-  }, [hasUnsavedChanges, notes, initialSession.id]);
+      if (!hasUnsavedRef.current) return;
+      const notesToSave = notesRef.current;
+      startTransition(async () => {
+        try {
+          await updateSessionNotes(initialSession.id, notesToSave);
+          lastSaveRef.current = new Date();
+          setHasUnsavedChanges(false);
+        } catch (error) {
+          console.error("Auto-save failed:", error);
+        }
+      });
+    }, 3000);
+  }, [initialSession.id]);
 
+  // Polling — hasUnsavedChanges removed from deps; use hasUnsavedRef inside
   useEffect(() => {
-    console.log(sessionData);
     if (!sessionData?.user?.id || initialSession.status === "completed") return;
-
-    console.log(
-      "[v0] Starting real-time polling for session",
-      initialSession.id
-    );
 
     pollIntervalRef.current = setInterval(async () => {
       if (document.hidden) return;
-
-      console.log("[v0] Polling for updates");
       try {
         const data = await getSessionData(initialSession.id);
-
         const serverUpdated = new Date(data.session.updatedAt);
-        if (serverUpdated > lastSaveRef.current && !hasUnsavedChanges) {
-          console.log("[v0] Received updates from server", {
-            serverUpdated,
-            lastSave: lastSaveRef.current,
-          });
-
-          const serverNotes =
-            typeof data.session.notes === "string"
-              ? JSON.parse(data.session.notes)
-              : (data.session.notes as SessionNotes);
-
-          setNotes(serverNotes);
-          // setLastUpdated(serverUpdated);
+        if (serverUpdated > lastSaveRef.current && !hasUnsavedRef.current) {
+          setNotes(parseNotes(data.session.notes));
         }
-
         setActiveUsers(data.activeUsers);
         setIsOnline(true);
-      } catch (error) {
-        console.error("[v0] Failed to fetch session updates:", error);
+      } catch {
         setIsOnline(false);
       }
     }, 30000);
 
     presenceIntervalRef.current = setInterval(async () => {
       if (document.hidden) return;
-
       try {
         await updatePresence(initialSession.id);
       } catch (error) {
-        console.error("[v0] Failed to update presence:", error);
+        console.error("Failed to update presence:", error);
       }
     }, 60000);
 
@@ -145,19 +126,13 @@ export default function SessionTracker({
         getSessionData(initialSession.id)
           .then((data) => {
             const serverUpdated = new Date(data.session.updatedAt);
-            if (serverUpdated > lastSaveRef.current && !hasUnsavedChanges) {
-              const serverNotes =
-                typeof data.session.notes === "string"
-                  ? JSON.parse(data.session.notes)
-                  : (data.session.notes as SessionNotes);
-              setNotes(serverNotes);
-              // setLastUpdated(serverUpdated);
+            if (serverUpdated > lastSaveRef.current && !hasUnsavedRef.current) {
+              setNotes(parseNotes(data.session.notes));
             }
             setActiveUsers(data.activeUsers);
             setIsOnline(true);
           })
           .catch(console.error);
-
         updatePresence(initialSession.id).catch(console.error);
       }
     };
@@ -165,82 +140,100 @@ export default function SessionTracker({
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      console.log("[v0] Cleaning up real-time polling");
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-      if (presenceIntervalRef.current)
-        clearInterval(presenceIntervalRef.current);
+      if (presenceIntervalRef.current) clearInterval(presenceIntervalRef.current);
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [
-    initialSession.id,
-    initialSession.status,
-    sessionData,
-    hasUnsavedChanges,
-  ]);
+  }, [initialSession.id, initialSession.status, sessionData?.user?.id]);
+
+  // External refresh — triggered by parent (e.g. after posting a roll to this session)
+  useEffect(() => {
+    if (!externalRefreshSignal) return;
+    getSessionData(initialSession.id)
+      .then((data) => {
+        setNotes(parseNotes(data.session.notes));
+        lastSaveRef.current = new Date(data.session.updatedAt);
+      })
+      .catch(console.error);
+  }, [externalRefreshSignal, initialSession.id]);
 
   const [newEvent, setNewEvent] = useState("");
 
+  // Saves immediately with the computed notes — no stale closure risk
   const addEvent = useCallback(() => {
     if (!newEvent.trim()) return;
-    const timestamp = new Date().toLocaleTimeString();
-    setNotes((prev) => ({
-      ...prev,
-      events: [...prev.events, { timestamp, description: newEvent }],
-    }));
+    const updated: SessionNotes = {
+      ...notesRef.current,
+      events: [
+        ...notesRef.current.events,
+        { timestamp: new Date().toLocaleTimeString(), description: newEvent },
+      ],
+    };
+    setNotes(updated);
     setNewEvent("");
-    setHasUnsavedChanges(true);
-    autoSave();
-  }, [newEvent, autoSave]);
+    startTransition(async () => {
+      await updateSessionNotes(initialSession.id, updated);
+      lastSaveRef.current = new Date();
+      setHasUnsavedChanges(false);
+    });
+  }, [newEvent, initialSession.id]);
 
   const [npcName, setNpcName] = useState("");
   const [npcNotes, setNpcNotes] = useState("");
 
   const addNPC = useCallback(() => {
     if (!npcName.trim()) return;
-    setNotes((prev) => ({
-      ...prev,
-      npcs: [...prev.npcs, { name: npcName, notes: npcNotes }],
-    }));
+    const updated: SessionNotes = {
+      ...notesRef.current,
+      npcs: [...notesRef.current.npcs, { name: npcName, notes: npcNotes }],
+    };
+    setNotes(updated);
     setNpcName("");
     setNpcNotes("");
-    setHasUnsavedChanges(true);
-    autoSave();
-  }, [npcName, npcNotes, autoSave]);
+    startTransition(async () => {
+      await updateSessionNotes(initialSession.id, updated);
+      lastSaveRef.current = new Date();
+      setHasUnsavedChanges(false);
+    });
+  }, [npcName, npcNotes, initialSession.id]);
 
   const [locationName, setLocationName] = useState("");
   const [locationNotes, setLocationNotes] = useState("");
 
   const addLocation = useCallback(() => {
     if (!locationName.trim()) return;
-    setNotes((prev) => ({
-      ...prev,
+    const updated: SessionNotes = {
+      ...notesRef.current,
       locations: [
-        ...prev.locations,
+        ...notesRef.current.locations,
         { name: locationName, notes: locationNotes },
       ],
-    }));
+    };
+    setNotes(updated);
     setLocationName("");
     setLocationNotes("");
-    setHasUnsavedChanges(true);
-    autoSave();
-  }, [locationName, locationNotes, autoSave]);
+    startTransition(async () => {
+      await updateSessionNotes(initialSession.id, updated);
+      lastSaveRef.current = new Date();
+      setHasUnsavedChanges(false);
+    });
+  }, [locationName, locationNotes, initialSession.id]);
 
+  // General notes: debounced auto-save (typing triggers this, not discrete add)
   const updateGeneralNotes = useCallback((value: string) => {
     setNotes((prev) => ({ ...prev, generalNotes: value }));
     setHasUnsavedChanges(true);
   }, []);
 
   useEffect(() => {
-    if (hasUnsavedChanges) {
-      autoSave();
-    }
+    if (hasUnsavedChanges) autoSave();
   }, [notes.generalNotes, hasUnsavedChanges, autoSave]);
 
   const handleSave = useCallback(() => {
     startTransition(async () => {
       try {
-        await updateSessionNotes(initialSession.id, notes);
+        await updateSessionNotes(initialSession.id, notesRef.current);
         lastSaveRef.current = new Date();
         setHasUnsavedChanges(false);
         toast.success("Session notes saved!");
@@ -250,14 +243,14 @@ export default function SessionTracker({
         console.error(error);
       }
     });
-  }, [initialSession.id, notes, router]);
+  }, [initialSession.id, router]);
 
   const handleComplete = useCallback(() => {
     startTransition(async () => {
       try {
         await completeSession(initialSession.id);
         toast.success(
-          "Session completed! You can now convert it to a journal entry."
+          "Session completed! You can now convert it to a journal entry.",
         );
         router.refresh();
       } catch (error) {
@@ -268,7 +261,7 @@ export default function SessionTracker({
   }, [initialSession.id, router]);
 
   const exportMarkdown = useCallback(() => {
-    const markdown = generateMarkdown(initialSession, notes);
+    const markdown = generateMarkdown(initialSession, notesRef.current);
     const blob = new Blob([markdown], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -281,10 +274,10 @@ export default function SessionTracker({
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     toast.success("Markdown exported!");
-  }, [initialSession, notes]);
+  }, [initialSession]);
 
   const exportPDF = useCallback(() => {
-    const markdown = generateMarkdown(initialSession, notes);
+    const markdown = generateMarkdown(initialSession, notesRef.current);
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
@@ -321,7 +314,7 @@ export default function SessionTracker({
       printWindow.print();
       toast.success("PDF print dialog opened!");
     }, 250);
-  }, [initialSession, notes]);
+  }, [initialSession]);
 
   const isCompleted = initialSession.status === "completed";
 
@@ -444,8 +437,13 @@ export default function SessionTracker({
                   disabled={isCompleted}
                   rows={3}
                 />
-                <Button onClick={addEvent} disabled={isCompleted} className="w-full">
-                  Add Event <span className="ml-1 text-xs opacity-60">(Ctrl+Enter)</span>
+                <Button
+                  onClick={addEvent}
+                  disabled={isCompleted}
+                  className="w-full"
+                >
+                  Add Event{" "}
+                  <span className="ml-1 text-xs opacity-60">(Ctrl+Enter)</span>
                 </Button>
               </div>
 
