@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import StyledMarkdown from "@/components/StyledMarkdown";
 import {
   Clock,
   Users,
@@ -429,16 +430,22 @@ export default function SessionTracker({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Input
+              <div className="space-y-2">
+                <Textarea
                   placeholder="What just happened? (e.g., 'Party encounters bandits')"
                   value={newEvent}
                   onChange={(e) => setNewEvent(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addEvent()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                      e.preventDefault();
+                      addEvent();
+                    }
+                  }}
                   disabled={isCompleted}
+                  rows={3}
                 />
-                <Button onClick={addEvent} disabled={isCompleted}>
-                  Add
+                <Button onClick={addEvent} disabled={isCompleted} className="w-full">
+                  Add Event <span className="ml-1 text-xs opacity-60">(Ctrl+Enter)</span>
                 </Button>
               </div>
 
@@ -458,7 +465,9 @@ export default function SessionTracker({
                       <Badge variant="outline" className="shrink-0">
                         {event.timestamp}
                       </Badge>
-                      <p className="flex-1">{event.description}</p>
+                      <div className="flex-1 [&>p:last-child]:mb-0">
+                        <StyledMarkdown content={event.description} />
+                      </div>
                     </div>
                   ))
                 )}
