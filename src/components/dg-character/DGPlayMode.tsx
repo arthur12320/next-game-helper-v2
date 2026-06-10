@@ -90,6 +90,8 @@ export function DGPlayMode({ character }: DGPlayModeProps) {
     pct: number;
   } | null>(null);
   const [rollResult, setRollResult] = useState<RollResult | null>(null);
+  const [animateRollResult, setAnimateRollResult] = useState(false);
+  const [rollAnimationKey, setRollAnimationKey] = useState(0);
 
   // --- End session dialog ---
   const [endSessionOpen, setEndSessionOpen] = useState(false);
@@ -181,6 +183,7 @@ export function DGPlayMode({ character }: DGPlayModeProps) {
 
   const openRoll = (skill: string, pct: number) => {
     setRollResult(null);
+    setAnimateRollResult(false);
     setRollMode("auto");
     setManualD100("");
     setRollModal({ open: true, skill, pct });
@@ -188,11 +191,15 @@ export function DGPlayMode({ character }: DGPlayModeProps) {
 
   const handleRoll = async (manualValue?: number) => {
     if (!rollModal) return;
-    const rolled =
-      manualValue !== undefined
-        ? manualValue
-        : Math.floor(Math.random() * 100) + 1;
+    const isAutoRoll = manualValue === undefined;
+    const rolled = isAutoRoll
+      ? Math.floor(Math.random() * 100) + 1
+      : manualValue;
     const success = rolled <= rollModal.pct;
+    setAnimateRollResult(isAutoRoll);
+    if (isAutoRoll) {
+      setRollAnimationKey((key) => key + 1);
+    }
     setRollResult({
       rolled,
       success,
@@ -1139,7 +1146,7 @@ export function DGPlayMode({ character }: DGPlayModeProps) {
                   size="sm"
                   variant={rollMode === "auto" ? "default" : "outline"}
                   className="flex-1"
-                  onClick={() => { setRollMode("auto"); setManualD100(""); setRollResult(null); }}
+                  onClick={() => { setRollMode("auto"); setManualD100(""); setRollResult(null); setAnimateRollResult(false); }}
                 >
                   Auto Roll
                 </Button>
@@ -1147,7 +1154,7 @@ export function DGPlayMode({ character }: DGPlayModeProps) {
                   size="sm"
                   variant={rollMode === "manual" ? "default" : "outline"}
                   className="flex-1"
-                  onClick={() => { setRollMode("manual"); setRollResult(null); }}
+                  onClick={() => { setRollMode("manual"); setRollResult(null); setAnimateRollResult(false); }}
                 >
                   Manual Roll
                 </Button>
@@ -1192,9 +1199,20 @@ export function DGPlayMode({ character }: DGPlayModeProps) {
               ) : (
                 <div className="space-y-3">
                   <div
-                    className={`text-center p-4 rounded-lg ${rollResult.success ? "bg-green-500/10 border border-green-500/30" : "bg-destructive/10 border border-destructive/30"}`}
+                    className={cn(
+                      "text-center p-4 rounded-lg",
+                      rollResult.success
+                        ? "bg-green-500/10 border border-green-500/30"
+                        : "bg-destructive/10 border border-destructive/30",
+                    )}
                   >
-                    <div className="text-4xl font-bold mb-1">
+                    <div
+                      key={rollAnimationKey}
+                      className={cn(
+                        "text-4xl font-bold mb-1",
+                        animateRollResult && "animate-number-flip",
+                      )}
+                    >
                       {rollResult.rolled}
                     </div>
                     <div

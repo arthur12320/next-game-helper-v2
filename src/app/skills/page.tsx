@@ -1,11 +1,14 @@
-// src/app/skills/page.tsx
 import { getAllSkills } from "@/app/actions/sc-skills";
+import { fetchDGMoSList } from "@/app/actions/dg-config";
 import { SkillsClient } from "./skills-client";
-import { Suspense } from "react";
-import { Loader2 } from "lucide-react";
+import { DGConfigPanel } from "@/components/dg-character/DGConfigPanel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default async function SkillsPage() {
-  const { skills, error } = await getAllSkills();
+  const [{ skills, error }, mosList] = await Promise.all([
+    getAllSkills(),
+    fetchDGMoSList(),
+  ]);
 
   if (error || !skills) {
     return <div>Error loading skills: {error}</div>;
@@ -13,9 +16,18 @@ export default async function SkillsPage() {
 
   return (
     <div className="container mx-auto p-4">
-      <Suspense fallback={<Loader2 className="h-6 w-6 animate-spin" />}>
-        <SkillsClient skills={skills} />
-      </Suspense>
+      <Tabs defaultValue="sc">
+        <TabsList className="mb-4">
+          <TabsTrigger value="sc">Special Circumstances</TabsTrigger>
+          <TabsTrigger value="dg">Delta Green</TabsTrigger>
+        </TabsList>
+        <TabsContent value="sc">
+          <SkillsClient skills={skills} />
+        </TabsContent>
+        <TabsContent value="dg">
+          <DGConfigPanel mosList={mosList} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

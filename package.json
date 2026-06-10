@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.8.0",
@@ -58,6 +61,9 @@
     "unified": "^11.0.5"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^2.0.0",
+    "vite-tsconfig-paths": "^5.0.0",
+    "vitest": "^2.0.0",
     "@eslint/eslintrc": "^3",
     "@next/eslint-plugin-next": "15.2.4",
     "@tailwindcss/postcss": "^4",
